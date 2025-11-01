@@ -1,7 +1,12 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { Users, PlusCircle, FolderOpen } from 'lucide-react'
+import type { ReactNode } from 'react'
 
-export default function Layout() {
+interface LayoutProps {
+  children: ReactNode
+}
+
+export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header with glassmorphism */}
@@ -61,7 +66,7 @@ export default function Layout() {
 
       {/* Main content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
-        <Outlet />
+        {children}
       </main>
 
       {/* Footer */}
