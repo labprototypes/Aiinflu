@@ -1,13 +1,5 @@
-export interface Blo  audio_url?: string
-  audio_alignment?: {
-    alignment: Array<{
-      character: string
-      character_start_times_seconds: number[]
-      character_end_times_seconds: number[]
-    }>
-    audio_duration: number
-  }
-  materials?: any[]string
+export interface Blogger {
+  id: string
   name: string
   type: string
   frontal_image_url?: string
@@ -16,32 +8,6 @@ export interface Blo  audio_url?: string
   elevenlabs_voice_id: string
   is_active: boolean
   created_at: string
-}
-
-export interface Project {
-  id: string
-  blogger_id: string
-  blogger?: Blogger
-  status: 'draft' | 'in_progress' | 'completed'
-  current_step: number
-  scenario_text?: string
-  voiceover_text?: string
-  audio_url?: string
-  audio_alignment?: {
-    alignment: Array<{
-      character: string
-      character_start_times_seconds: number[]
-      character_end_times_seconds: number[]
-    }>
-    audio_duration: number
-  }
-  materials?: any[]
-  timeline?: any[]
-  avatar_video_url?: string
-  avatar_generation_params?: any
-  final_video_url?: string
-  created_at: string
-  updated_at: string
 }
 
 export interface Project {
