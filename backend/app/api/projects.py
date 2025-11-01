@@ -55,12 +55,16 @@ def create_project():
 @bp.route('/projects/<project_id>', methods=['PUT'])
 def update_project(project_id):
     """Update project."""
+    from flask import current_app
     project = Project.query.get_or_404(project_id)
     data = request.get_json()
+    
+    current_app.logger.info(f"Updating project {project_id} with data: {data}")
     
     # Update allowed fields
     if 'scenario_text' in data:
         project.scenario_text = data['scenario_text']
+        current_app.logger.info(f"Updated scenario_text: {data['scenario_text'][:100]}...")
     if 'voiceover_text' in data:
         project.voiceover_text = data['voiceover_text']
     if 'status' in data:
@@ -68,7 +72,13 @@ def update_project(project_id):
     if 'current_step' in data:
         project.current_step = data['current_step']
     
-    db.session.commit()
+    try:
+        db.session.commit()
+        current_app.logger.info(f"Project {project_id} updated successfully")
+    except Exception as e:
+        current_app.logger.error(f"Failed to update project: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
     
     return jsonify(project.to_dict())
 
@@ -76,13 +86,17 @@ def update_project(project_id):
 @bp.route('/projects/<project_id>/extract-text', methods=['POST'])
 def extract_voiceover_text(project_id):
     """Extract voiceover text from scenario using GPT-4."""
+    from flask import current_app
     project = Project.query.get_or_404(project_id)
+    
+    current_app.logger.info(f"Extracting text for project {project_id}")
     
     if not project.scenario_text:
         return jsonify({'error': 'Scenario text is required'}), 400
     
     try:
         # Extract text using GPT
+        current_app.logger.info("Calling GPT-4 for text extraction")
         voiceover_text = gpt_helper.extract_voiceover_text(project.scenario_text)
         
         # Save to project
@@ -90,12 +104,17 @@ def extract_voiceover_text(project_id):
         project.current_step = 2
         db.session.commit()
         
+        current_app.logger.info(f"Text extracted successfully for project {project_id}")
+        
         return jsonify({
             'voiceover_text': voiceover_text,
             'project': project.to_dict()
         })
     
     except Exception as e:
+        current_app.logger.error(f"Text extraction failed: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
