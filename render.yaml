@@ -38,10 +38,9 @@ services:
         sync: false
 
   # React Frontend
-  - type: web
+  - type: static
     name: aiinflu-frontend
-    runtime: node
-    env: node
+    env: static
     region: oregon
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
