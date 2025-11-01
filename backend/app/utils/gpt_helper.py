@@ -13,7 +13,10 @@ class GPTHelper:
     def _get_client(self):
         """Get or create OpenAI client."""
         if not self.client:
-            self.client = OpenAI(api_key=current_app.config['OPENAI_API_KEY'])
+            api_key = current_app.config.get('OPENAI_API_KEY')
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY is not configured. Please set it in Render Dashboard.")
+            self.client = OpenAI(api_key=api_key)
         return self.client
     
     def extract_voiceover_text(self, scenario: str) -> str:
