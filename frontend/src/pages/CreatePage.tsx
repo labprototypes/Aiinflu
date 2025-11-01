@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import { Loader2, Play, Pause, Check, Upload, Film, Sparkles, Trash2, Video, Download } from 'lucide-react'
 import { bloggersApi, projectsApi } from '@/lib/api'
 import { Blogger, Project } from '@/types'
@@ -15,6 +16,7 @@ const STEPS = [
 ]
 
 export default function CreatePage() {
+  const location = useLocation()
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const [selectedBlogger, setSelectedBlogger] = useState<string>('')
   const [scenario, setScenario] = useState('')
@@ -25,6 +27,19 @@ export default function CreatePage() {
   const [expressionScale, setExpressionScale] = useState(1.0)
   const [addSubtitles, setAddSubtitles] = useState(true)
   const queryClient = useQueryClient()
+
+  // Load project from navigation state (when continuing from Projects page)
+  useEffect(() => {
+    const projectId = location.state?.projectId
+    if (projectId && !currentProject) {
+      projectsApi.getById(projectId).then((response) => {
+        const project = response.data as Project
+        setCurrentProject(project)
+        if (project.scenario_text) setScenario(project.scenario_text)
+        if (project.voiceover_text) setVoiceoverText(project.voiceover_text)
+      })
+    }
+  }, [location.state, currentProject])
 
   const { data: bloggers } = useQuery({
     queryKey: ['bloggers'],
