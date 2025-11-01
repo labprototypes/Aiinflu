@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Trash2, Clock, CheckCircle, PlayCircle, Download } from 'lucide-react'
 import { projectsApi } from '@/lib/api'
-import { Project } from '@/types'
+import type { Project } from '@/types'
 
 export default function ProjectsPage() {
   const navigate = useNavigate()

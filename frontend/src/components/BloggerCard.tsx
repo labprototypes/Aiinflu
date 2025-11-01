@@ -1,5 +1,5 @@
-import { Blogger } from '@/types'
-import { Edit, Trash2 } from 'lucide-react'
+import type { Blogger } from '@/types'
+import { Pencil, Trash2, UserIcon } from 'lucide-react'
 
 interface BloggerCardProps {
   blogger: Blogger

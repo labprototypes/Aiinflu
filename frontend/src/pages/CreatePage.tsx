@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { Loader2, Play, Pause, Check, Upload, Sparkles, Video, Download } from 'lucide-react'
 import { bloggersApi, projectsApi } from '@/lib/api'
-import { Blogger, Project } from '@/types'
+import type { Blogger, Project } from '@/types'
 import Stepper from '@/components/Stepper'
 
 const STEPS = [
