@@ -79,11 +79,14 @@ class ElevenLabsHelper:
             # Create file-like object for S3 upload
             from io import BytesIO
             audio_file = BytesIO(audio_bytes)
-            audio_file.name = f"audio_{voice_id}.mp3"
-            audio_file.content_type = "audio/mpeg"
             
             current_app.logger.info("Uploading audio to S3")
-            audio_url = s3_helper.upload_file(audio_file, folder='audio')
+            audio_url = s3_helper.upload_file(
+                audio_file, 
+                folder='audio',
+                filename=f"audio_{voice_id}.mp3",
+                content_type="audio/mpeg"
+            )
             current_app.logger.info(f"Audio uploaded successfully: {audio_url}")
             
             return {

@@ -23,13 +23,15 @@ class S3Helper:
             )
         return self.s3_client
     
-    def upload_file(self, file, folder='uploads'):
+    def upload_file(self, file, folder='uploads', filename=None, content_type=None):
         """
         Upload file to S3 and return public URL.
         
         Args:
-            file: FileStorage object from Flask
+            file: FileStorage object from Flask or BytesIO object
             folder: S3 folder path (default: 'uploads')
+            filename: Optional filename (required for BytesIO objects)
+            content_type: Optional content type (e.g., 'audio/mpeg', 'image/jpeg')
             
         Returns:
             str: Public URL of uploaded file
@@ -43,9 +45,23 @@ class S3Helper:
             raise ValueError("AWS_S3_BUCKET is not configured. Please set AWS environment variables in Render Dashboard.")
         
         # Generate unique filename
-        filename = secure_filename(file.filename)
-        unique_filename = f"{uuid.uuid4()}_{filename}"
+        # Handle both FileStorage (has .filename) and BytesIO (needs filename param)
+        if hasattr(file, 'filename'):
+            base_filename = secure_filename(file.filename)
+        elif filename:
+            base_filename = secure_filename(filename)
+        else:
+            # Generate a default filename with timestamp
+            base_filename = f"file_{uuid.uuid4().hex[:8]}"
+        
+        unique_filename = f"{uuid.uuid4()}_{base_filename}"
         s3_key = f"{folder}/{unique_filename}"
+        
+        # Determine content type
+        if hasattr(file, 'content_type'):
+            content_type = file.content_type
+        elif not content_type:
+            content_type = 'application/octet-stream'
         
         # Upload to S3
         client = self._get_client()
@@ -56,7 +72,7 @@ class S3Helper:
                 bucket,
                 s3_key,
                 ExtraArgs={
-                    'ContentType': file.content_type
+                    'ContentType': content_type
                 }
             )
             
