@@ -2,7 +2,11 @@
 from flask import request, jsonify
 from app import db
 from app.models import Project, Blogger
-from app.utils import gpt_helper, elevenlabs_helper, s3_helper, falai_helper, ffmpeg_helper
+from app.utils.gpt_helper import gpt_helper
+from app.utils.elevenlabs_helper import elevenlabs_helper
+from app.utils.s3_helper import s3_helper
+from app.utils.falai_helper import falai_helper
+from app.utils.ffmpeg_helper import ffmpeg_helper
 from werkzeug.utils import secure_filename
 import uuid
 from app.api import bp
