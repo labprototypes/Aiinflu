@@ -1,0 +1,63 @@
+services:
+  # Flask Backend API
+  - type: web
+    name: aiinflu-backend
+    runtime: python
+    env: python
+    region: oregon
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT run:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.1
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aiinflu-db
+          property: connectionString
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_BUCKET
+        sync: false
+      - key: AWS_REGION
+        value: us-east-2
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: FAL_KEY
+        sync: false
+      - key: TMDB_API_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  # React Frontend
+  - type: web
+    name: aiinflu-frontend
+    runtime: node
+    env: node
+    region: oregon
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 20.10.0
+      - key: VITE_API_URL
+        value: https://aiinflu-backend.onrender.com/api
+
+databases:
+  - name: aiinflu-db
+    databaseName: aiinflu
+    user: aiinflu
+    region: oregon
+    plan: starter
