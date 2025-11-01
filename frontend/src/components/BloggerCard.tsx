@@ -1,5 +1,5 @@
 import type { Blogger } from '@/types'
-import { Pencil, Trash2, UserIcon } from 'lucide-react'
+import { Pencil, Trash2, User } from 'lucide-react'
 
 interface BloggerCardProps {
   blogger: Blogger
@@ -20,7 +20,7 @@ export default function BloggerCard({ blogger, onEdit, onDelete }: BloggerCardPr
           />
         ) : (
           <div className="w-full h-48 bg-white/5 flex items-center justify-center">
-            <UserIcon size={48} className="text-white/20" />
+            <User size={48} className="text-white/20" />
           </div>
         )}
         
@@ -47,7 +47,7 @@ export default function BloggerCard({ blogger, onEdit, onDelete }: BloggerCardPr
           onClick={() => onEdit(blogger)}
           className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-smooth flex items-center justify-center gap-2"
         >
-          <Edit size={16} />
+          <Pencil size={16} />
           Редактировать
         </button>
         <button
