@@ -57,5 +57,4 @@ databases:
   - name: aiinflu-db
     databaseName: aiinflu
     user: aiinflu
-    region: oregon
-    plan: starter
+    plan: free
