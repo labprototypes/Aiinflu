@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Project, Blogger
-from app.utils import gpt_helper, elevenlabs_helper, s3_helper, tmdb_helper
+from app.utils import gpt_helper, elevenlabs_helper, s3_helper, tmdb_helper, falai_helper, ffmpeg_helper
 from werkzeug.utils import secure_filename
 import uuid
 
@@ -271,6 +271,126 @@ def generate_timeline(project_id):
         
         return jsonify({
             'timeline': timeline,
+            'project': project.to_dict()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<project_id>/generate-avatar-video', methods=['POST'])
+def generate_avatar_video(project_id):
+    """Generate talking avatar video using fal.ai InfiniTalk"""
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.audio_url:
+        return jsonify({'error': 'Audio must be generated first'}), 400
+    
+    if not project.blogger.frontal_image_url:
+        return jsonify({'error': 'Blogger has no frontal image'}), 400
+    
+    try:
+        data = request.get_json() or {}
+        expression_scale = data.get('expression_scale', 1.0)
+        face_enhance = data.get('face_enhance', True)
+        
+        result = falai_helper.generate_avatar_video(
+            audio_url=project.audio_url,
+            image_url=project.blogger.frontal_image_url,
+            expression_scale=expression_scale,
+            face_enhance=face_enhance
+        )
+        
+        project.avatar_video_url = result['video_url']
+        project.avatar_generation_params = {
+            'expression_scale': expression_scale,
+            'face_enhance': face_enhance,
+            'fal_request_id': result.get('request_id')
+        }
+        project.current_step = 5
+        db.session.commit()
+        
+        return jsonify({
+            'avatar_video_url': result['video_url'],
+            'project': project.to_dict()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<project_id>/check-avatar-status/<request_id>', methods=['GET'])
+def check_avatar_status(project_id, request_id):
+    """Check status of avatar video generation"""
+    project = Project.query.get_or_404(project_id)
+    
+    try:
+        status = falai_helper.check_status(request_id)
+        
+        if status.get('status') == 'completed' and status.get('video_url'):
+            project.avatar_video_url = status['video_url']
+            project.current_step = 5
+            db.session.commit()
+        
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<project_id>/compose-final-video', methods=['POST'])
+def compose_final_video(project_id):
+    """Compose final video with FFmpeg"""
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.avatar_video_url:
+        return jsonify({'error': 'Avatar video must be generated first'}), 400
+    
+    if not project.audio_url:
+        return jsonify({'error': 'Audio is required'}), 400
+    
+    try:
+        data = request.get_json() or {}
+        add_subtitles = data.get('add_subtitles', False)
+        advanced_composition = data.get('advanced_composition', False)
+        
+        output_filename = f"final_{project_id}.mp4"
+        
+        # Create composition
+        if advanced_composition and project.timeline:
+            video_path = ffmpeg_helper.create_advanced_composition(
+                avatar_video_url=project.avatar_video_url,
+                audio_url=project.audio_url,
+                timeline=project.timeline,
+                materials=project.materials or [],
+                output_filename=output_filename
+            )
+        else:
+            video_path = ffmpeg_helper.create_video_composition(
+                avatar_video_url=project.avatar_video_url,
+                audio_url=project.audio_url,
+                timeline=project.timeline or [],
+                materials=project.materials or [],
+                output_filename=output_filename
+            )
+        
+        # Add subtitles if requested
+        if add_subtitles and project.voiceover_text and project.audio_alignment:
+            video_path = ffmpeg_helper.add_subtitles(
+                video_path=video_path,
+                voiceover_text=project.voiceover_text,
+                audio_alignment=project.audio_alignment,
+                output_filename=f"final_subs_{project_id}.mp4"
+            )
+        
+        # Upload to S3
+        with open(video_path, 'rb') as f:
+            final_video_url = s3_helper.upload_file(f, 'final_videos')
+        
+        project.final_video_url = final_video_url
+        project.status = 'completed'
+        project.current_step = 6
+        db.session.commit()
+        
+        return jsonify({
+            'final_video_url': final_video_url,
             'project': project.to_dict()
         })
     except Exception as e:

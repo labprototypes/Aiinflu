@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Play, Pause, Check, Upload, Film, Sparkles, Trash2 } from 'lucide-react'
+import { Loader2, Play, Pause, Check, Upload, Film, Sparkles, Trash2, Video, Download } from 'lucide-react'
 import { bloggersApi, projectsApi } from '@/lib/api'
 import { Blogger, Project } from '@/types'
 import Stepper from '@/components/Stepper'
@@ -22,6 +22,8 @@ export default function CreatePage() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [tmdbTitle, setTmdbTitle] = useState('')
   const [tmdbTitleSecondary, setTmdbTitleSecondary] = useState('')
+  const [expressionScale, setExpressionScale] = useState(1.0)
+  const [addSubtitles, setAddSubtitles] = useState(true)
   const queryClient = useQueryClient()
 
   const { data: bloggers } = useQuery({
@@ -94,6 +96,22 @@ export default function CreatePage() {
     },
   })
 
+  const generateAvatarMutation = useMutation({
+    mutationFn: ({ id, params }: { id: string; params?: any }) =>
+      projectsApi.generateAvatarVideo(id, params),
+    onSuccess: (response) => {
+      setCurrentProject(response.data.project)
+    },
+  })
+
+  const composeFinalMutation = useMutation({
+    mutationFn: ({ id, options }: { id: string; options?: any }) =>
+      projectsApi.composeFinalVideo(id, options),
+    onSuccess: (response) => {
+      setCurrentProject(response.data.project)
+    },
+  })
+
   const handleStartProject = () => {
     if (selectedBlogger) {
       createProjectMutation.mutate(selectedBlogger)
@@ -159,6 +177,24 @@ export default function CreatePage() {
   const handleGenerateTimeline = () => {
     if (currentProject) {
       generateTimelineMutation.mutate(currentProject.id)
+    }
+  }
+
+  const handleGenerateAvatar = () => {
+    if (currentProject) {
+      generateAvatarMutation.mutate({
+        id: currentProject.id,
+        params: { expression_scale: expressionScale, face_enhance: true },
+      })
+    }
+  }
+
+  const handleComposeFinal = () => {
+    if (currentProject) {
+      composeFinalMutation.mutate({
+        id: currentProject.id,
+        options: { add_subtitles: addSubtitles, advanced_composition: true },
+      })
     }
   }
 
@@ -454,9 +490,133 @@ export default function CreatePage() {
 
       {/* Future steps */}
       {currentProject && currentStep >= 5 && (
-        <div className="glass-card p-8 text-center mt-6">
-          <p className="text-white/60">Этапы 5-6 (Генерация видео и Монтаж) в разработке...</p>
-        </div>
+        <>
+          {/* Step 5: Avatar Video Generation */}
+          <div className="glass-card p-8 mb-6">
+            <h3 className="text-xl font-bold mb-4">Этап 5: Генерация видео с аватаром</h3>
+
+            {!currentProject.avatar_video_url ? (
+              <div>
+                <div className="mb-4">
+                  <label className="block text-sm mb-2">Выразительность (0.0 - 2.0)</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    value={expressionScale}
+                    onChange={(e) => setExpressionScale(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                  <span className="text-sm text-white/60">{expressionScale.toFixed(1)}</span>
+                </div>
+
+                <button
+                  onClick={handleGenerateAvatar}
+                  disabled={generateAvatarMutation.isPending}
+                  className="btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  {generateAvatarMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                  <Video size={20} />
+                  Сгенерировать видео (fal.ai InfiniTalk)
+                </button>
+                
+                {generateAvatarMutation.isPending && (
+                  <p className="text-center text-white/60 text-sm mt-3">
+                    Генерация может занять 1-3 минуты...
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <video
+                  src={currentProject.avatar_video_url}
+                  controls
+                  className="w-full rounded-lg mb-4"
+                />
+                <button
+                  onClick={handleGenerateAvatar}
+                  disabled={generateAvatarMutation.isPending}
+                  className="btn-secondary w-full"
+                >
+                  Перегенерировать
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Step 6: Final Composition */}
+          {currentStep >= 6 && currentProject.avatar_video_url && (
+            <div className="glass-card p-8">
+              <h3 className="text-xl font-bold mb-4">Этап 6: Финальный монтаж</h3>
+
+              {!currentProject.final_video_url ? (
+                <div>
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={addSubtitles}
+                        onChange={(e) => setAddSubtitles(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">Добавить субтитры</span>
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={handleComposeFinal}
+                    disabled={composeFinalMutation.isPending}
+                    className="btn-primary w-full flex items-center justify-center gap-2"
+                  >
+                    {composeFinalMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                    Создать финальное видео (FFmpeg)
+                  </button>
+
+                  {composeFinalMutation.isPending && (
+                    <p className="text-center text-white/60 text-sm mt-3">
+                      Монтаж видео в процессе...
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center">
+                  <div className="mb-6">
+                    <div className="inline-block p-4 bg-green-600/20 rounded-full mb-4">
+                      <Check size={48} className="text-green-500" />
+                    </div>
+                    <h4 className="text-xl font-bold mb-2">Видео готово! 🎉</h4>
+                    <p className="text-white/60">Проект успешно завершён</p>
+                  </div>
+
+                  <video
+                    src={currentProject.final_video_url}
+                    controls
+                    className="w-full rounded-lg mb-4"
+                  />
+
+                  <div className="flex gap-3">
+                    <a
+                      href={currentProject.final_video_url}
+                      download
+                      className="btn-primary flex-1 flex items-center justify-center gap-2"
+                    >
+                      <Download size={20} />
+                      Скачать видео
+                    </a>
+                    <button
+                      onClick={handleComposeFinal}
+                      disabled={composeFinalMutation.isPending}
+                      className="btn-secondary"
+                    >
+                      Пересобрать
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

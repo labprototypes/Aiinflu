@@ -43,6 +43,12 @@ export const projectsApi = {
   searchTMDB: (id: string, title: string, titleSecondary?: string) =>
     api.post(`/projects/${id}/search-tmdb`, { title, title_secondary: titleSecondary }),
   generateTimeline: (id: string) => api.post(`/projects/${id}/generate-timeline`),
+  generateAvatarVideo: (id: string, params?: { expression_scale?: number; face_enhance?: boolean }) =>
+    api.post(`/projects/${id}/generate-avatar-video`, params),
+  checkAvatarStatus: (id: string, requestId: string) =>
+    api.get(`/projects/${id}/check-avatar-status/${requestId}`),
+  composeFinalVideo: (id: string, options?: { add_subtitles?: boolean; advanced_composition?: boolean }) =>
+    api.post(`/projects/${id}/compose-final-video`, options),
 }
 
 // ElevenLabs API
