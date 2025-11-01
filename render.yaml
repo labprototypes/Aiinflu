@@ -38,7 +38,7 @@ services:
         sync: false
 
   # React Frontend
-  - type: static
+  - type: web
     name: aiinflu-frontend
     env: static
     region: oregon
