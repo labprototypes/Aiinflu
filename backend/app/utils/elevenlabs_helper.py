@@ -13,8 +13,11 @@ class ElevenLabsHelper:
     
     def _get_headers(self):
         """Get API headers."""
+        api_key = current_app.config.get('ELEVENLABS_API_KEY')
+        if not api_key:
+            raise ValueError("ELEVENLABS_API_KEY is not configured. Please set it in Render Dashboard.")
         return {
-            "xi-api-key": current_app.config['ELEVENLABS_API_KEY'],
+            "xi-api-key": api_key,
             "Content-Type": "application/json"
         }
     
@@ -57,6 +60,7 @@ class ElevenLabsHelper:
         }
         
         try:
+            current_app.logger.info(f"Generating speech with ElevenLabs for voice {voice_id}")
             response = requests.post(
                 url,
                 headers=self._get_headers(),
@@ -66,6 +70,7 @@ class ElevenLabsHelper:
             response.raise_for_status()
             
             data = response.json()
+            current_app.logger.info(f"ElevenLabs response received, audio size: {len(data.get('audio_base64', ''))} bytes")
             
             # Upload audio to S3
             from app.utils.s3_helper import s3_helper
@@ -77,17 +82,27 @@ class ElevenLabsHelper:
             audio_file.name = f"audio_{voice_id}.mp3"
             audio_file.content_type = "audio/mpeg"
             
+            current_app.logger.info("Uploading audio to S3")
             audio_url = s3_helper.upload_file(audio_file, folder='audio')
+            current_app.logger.info(f"Audio uploaded successfully: {audio_url}")
             
             return {
                 'audio_url': audio_url,
                 'alignment': data.get('alignment'),
-                'normalized_alignment': data.get('normalized_alignment')
+                'normalized_alignment': data.get('normalized_alignment'),
+                'audio_duration': data.get('alignment', {}).get('duration_seconds', 0)
             }
             
         except requests.exceptions.RequestException as e:
             current_app.logger.error(f"ElevenLabs API error: {str(e)}")
+            if hasattr(e.response, 'text'):
+                current_app.logger.error(f"Response: {e.response.text}")
             raise Exception(f"Failed to generate speech: {str(e)}")
+        except Exception as e:
+            current_app.logger.error(f"Audio generation failed: {str(e)}")
+            import traceback
+            current_app.logger.error(traceback.format_exc())
+            raise
     
     def list_voices(self) -> list:
         """
