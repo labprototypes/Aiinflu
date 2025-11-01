@@ -1,12 +1,11 @@
 """Project API endpoints."""
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify
 from app import db
 from app.models import Project, Blogger
 from app.utils import gpt_helper, elevenlabs_helper, s3_helper, falai_helper, ffmpeg_helper
 from werkzeug.utils import secure_filename
 import uuid
-
-bp = Blueprint('projects', __name__, url_prefix='/projects')
+from app.api import bp
 
 
 @bp.route('/projects', methods=['GET'])
@@ -96,7 +95,7 @@ def extract_voiceover_text(project_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/<project_id>/generate-audio', methods=['POST'])
+@bp.route('/projects/<project_id>/generate-audio', methods=['POST'])
 def generate_audio(project_id):
     """Generate audio using ElevenLabs TTS"""
     project = Project.query.get_or_404(project_id)
@@ -130,7 +129,7 @@ def generate_audio(project_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/<project_id>/upload-material', methods=['POST'])
+@bp.route('/projects/<project_id>/upload-material', methods=['POST'])
 def upload_material(project_id):
     """Upload material (image/video) for project"""
     project = Project.query.get_or_404(project_id)
@@ -166,7 +165,7 @@ def upload_material(project_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/<project_id>/analyze-materials', methods=['POST'])
+@bp.route('/projects/<project_id>/analyze-materials', methods=['POST'])
 def analyze_materials(project_id):
     """Analyze materials using GPT-4 Vision"""
     project = Project.query.get_or_404(project_id)
@@ -196,7 +195,7 @@ def analyze_materials(project_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/<project_id>/generate-timeline', methods=['POST'])
+@bp.route('/projects/<project_id>/generate-timeline', methods=['POST'])
 def generate_timeline(project_id):
     """Generate video timeline using GPT"""
     project = Project.query.get_or_404(project_id)
@@ -226,7 +225,7 @@ def generate_timeline(project_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/<project_id>/generate-avatar-video', methods=['POST'])
+@bp.route('/projects/<project_id>/generate-avatar-video', methods=['POST'])
 def generate_avatar_video(project_id):
     """Generate talking avatar video using fal.ai InfiniTalk"""
     project = Project.query.get_or_404(project_id)
@@ -266,7 +265,7 @@ def generate_avatar_video(project_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/<project_id>/check-avatar-status/<request_id>', methods=['GET'])
+@bp.route('/projects/<project_id>/check-avatar-status/<request_id>', methods=['GET'])
 def check_avatar_status(project_id, request_id):
     """Check status of avatar video generation"""
     project = Project.query.get_or_404(project_id)
@@ -284,7 +283,7 @@ def check_avatar_status(project_id, request_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/<project_id>/compose-final-video', methods=['POST'])
+@bp.route('/projects/<project_id>/compose-final-video', methods=['POST'])
 def compose_final_video(project_id):
     """Compose final video with FFmpeg"""
     project = Project.query.get_or_404(project_id)
