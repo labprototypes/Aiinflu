@@ -5,7 +5,7 @@ services:
     runtime: python
     env: python
     region: oregon
-    buildCommand: cd backend && pip cache purge && pip install --no-cache-dir -r requirements.txt && flask db upgrade
+    buildCommand: cd backend && pip install -r requirements.txt
     startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT run:app
     envVars:
       - key: PYTHON_VERSION
