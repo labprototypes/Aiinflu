@@ -37,13 +37,17 @@ class S3Helper:
         if not file:
             return None
         
+        # Check if AWS is configured
+        bucket = current_app.config.get('AWS_S3_BUCKET')
+        if not bucket:
+            raise ValueError("AWS_S3_BUCKET is not configured. Please set AWS environment variables in Render Dashboard.")
+        
         # Generate unique filename
         filename = secure_filename(file.filename)
         unique_filename = f"{uuid.uuid4()}_{filename}"
         s3_key = f"{folder}/{unique_filename}"
         
         # Upload to S3
-        bucket = current_app.config['AWS_S3_BUCKET']
         client = self._get_client()
         
         try:
