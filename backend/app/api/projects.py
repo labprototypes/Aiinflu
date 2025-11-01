@@ -1,10 +1,12 @@
 """Project API endpoints."""
-from flask import request, jsonify
-from app.api import bp
+from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Project, Blogger
-from app.utils.gpt_helper import gpt_helper
-from app.utils.elevenlabs_helper import elevenlabs_helper
+from app.utils import gpt_helper, elevenlabs_helper, s3_helper, tmdb_helper
+from werkzeug.utils import secure_filename
+import uuid
+
+bp = Blueprint('projects', __name__, url_prefix='/projects')
 
 
 @bp.route('/projects', methods=['GET'])
@@ -94,39 +96,183 @@ def extract_voiceover_text(project_id):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/projects/<project_id>/generate-audio', methods=['POST'])
+@bp.route('/<project_id>/generate-audio', methods=['POST'])
 def generate_audio(project_id):
-    """Generate audio using ElevenLabs TTS."""
+    """Generate audio using ElevenLabs TTS"""
     project = Project.query.get_or_404(project_id)
     
     if not project.voiceover_text:
-        return jsonify({'error': 'Voiceover text is required'}), 400
+        return jsonify({'error': 'No voiceover text available'}), 400
     
     if not project.blogger.elevenlabs_voice_id:
-        return jsonify({'error': 'Blogger voice ID not configured'}), 400
+        return jsonify({'error': 'Blogger has no ElevenLabs voice ID'}), 400
     
     try:
-        # Generate speech with timestamps
         result = elevenlabs_helper.generate_speech_with_timestamps(
             text=project.voiceover_text,
             voice_id=project.blogger.elevenlabs_voice_id
         )
         
-        # Save to project
         project.audio_url = result['audio_url']
         project.audio_alignment = {
             'alignment': result.get('alignment'),
-            'normalized_alignment': result.get('normalized_alignment')
+            'audio_duration': result.get('audio_duration')
         }
         project.current_step = 3
         db.session.commit()
         
         return jsonify({
             'audio_url': result['audio_url'],
-            'alignment': result.get('alignment'),
+            'audio_duration': result.get('audio_duration'),
             'project': project.to_dict()
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<project_id>/upload-material', methods=['POST'])
+def upload_material(project_id):
+    """Upload material (image/video) for project"""
+    project = Project.query.get_or_404(project_id)
     
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    try:
+        # Upload to S3
+        file_url = s3_helper.upload_file(file, 'materials')
+        
+        # Create material record
+        material = {
+            'id': str(uuid.uuid4()),
+            'url': file_url,
+            'type': request.form.get('type', 'image'),
+            'filename': secure_filename(file.filename),
+            'uploaded_at': str(db.func.now())
+        }
+        
+        # Add to project materials
+        if not project.materials:
+            project.materials = []
+        project.materials.append(material)
+        db.session.commit()
+        
+        return jsonify({'material': material, 'project': project.to_dict()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<project_id>/analyze-materials', methods=['POST'])
+def analyze_materials(project_id):
+    """Analyze materials using GPT-4 Vision"""
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.materials:
+        return jsonify({'error': 'No materials to analyze'}), 400
+    
+    try:
+        # Get image URLs
+        image_urls = [mat['url'] for mat in project.materials if mat.get('type') == 'image']
+        
+        # Analyze with GPT Vision
+        analysis = gpt_helper.analyze_materials_with_vision(image_urls)
+        
+        # Update materials with analysis
+        for i, mat in enumerate(project.materials):
+            if mat.get('type') == 'image' and i < len(analysis.get('images', [])):
+                mat.update(analysis['images'][i])
+        
+        db.session.commit()
+        
+        return jsonify({
+            'analysis': analysis,
+            'project': project.to_dict()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<project_id>/search-tmdb', methods=['POST'])
+def search_tmdb(project_id):
+    """Search TMDB for movie/show materials"""
+    project = Project.query.get_or_404(project_id)
+    data = request.get_json()
+    
+    title = data.get('title')
+    if not title:
+        return jsonify({'error': 'Title required'}), 400
+    
+    try:
+        # Try cross-language match if secondary title provided
+        title_secondary = data.get('title_secondary')
+        if title_secondary:
+            result = tmdb_helper.match_cross_language(title, title_secondary)
+        else:
+            movie = tmdb_helper.search_movie(title)
+            if movie:
+                images = tmdb_helper.get_movie_images(movie['id'])
+                result = {**movie, 'images': images}
+            else:
+                result = None
+        
+        if not result:
+            return jsonify({'error': 'Movie not found'}), 404
+        
+        # Add TMDB images as materials
+        for img_url in result.get('images', []):
+            material = {
+                'id': str(uuid.uuid4()),
+                'url': img_url,
+                'type': 'image',
+                'source': 'tmdb',
+                'tmdb_id': result['id'],
+                'description': f"From {result.get('title_en', title)}"
+            }
+            if not project.materials:
+                project.materials = []
+            project.materials.append(material)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'tmdb_result': result,
+            'materials_added': len(result.get('images', [])),
+            'project': project.to_dict()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/<project_id>/generate-timeline', methods=['POST'])
+def generate_timeline(project_id):
+    """Generate video timeline using GPT"""
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.voiceover_text or not project.audio_alignment:
+        return jsonify({'error': 'Audio must be generated first'}), 400
+    
+    if not project.materials:
+        return jsonify({'error': 'Materials must be uploaded first'}), 400
+    
+    try:
+        timeline = gpt_helper.generate_timeline(
+            voiceover_text=project.voiceover_text,
+            audio_alignment=project.audio_alignment,
+            materials=project.materials
+        )
+        
+        project.timeline = timeline
+        project.current_step = 4
+        db.session.commit()
+        
+        return jsonify({
+            'timeline': timeline,
+            'project': project.to_dict()
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

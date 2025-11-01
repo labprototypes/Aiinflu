@@ -31,6 +31,18 @@ export const projectsApi = {
   delete: (id: string) => api.delete(`/projects/${id}`),
   extractText: (id: string) => api.post(`/projects/${id}/extract-text`),
   generateAudio: (id: string) => api.post(`/projects/${id}/generate-audio`),
+  uploadMaterial: (id: string, file: File, type: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('type', type)
+    return api.post(`/projects/${id}/upload-material`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  analyzeMaterials: (id: string) => api.post(`/projects/${id}/analyze-materials`),
+  searchTMDB: (id: string, title: string, titleSecondary?: string) =>
+    api.post(`/projects/${id}/search-tmdb`, { title, title_secondary: titleSecondary }),
+  generateTimeline: (id: string) => api.post(`/projects/${id}/generate-timeline`),
 }
 
 // ElevenLabs API

@@ -121,6 +121,78 @@ class GPTHelper:
                 })
         
         return results
+    
+    def generate_timeline(self, voiceover_text: str, audio_alignment: dict, materials: list) -> list:
+        """
+        Generate video timeline matching voiceover with materials.
+        
+        Args:
+            voiceover_text: Full voiceover text
+            audio_alignment: Character-level timestamps
+            materials: List of analyzed materials
+            
+        Returns:
+            Timeline segments with matched materials
+        """
+        client = self._get_client()
+        
+        # Prepare materials summary
+        materials_summary = []
+        for mat in materials:
+            materials_summary.append({
+                'id': mat.get('id'),
+                'description': mat.get('analysis', ''),
+                'url': mat.get('url')
+            })
+        
+        audio_duration = audio_alignment.get('audio_duration', 30)
+        
+        prompt = f"""Создай тайминги для видео на основе озвучки и доступных материалов.
+
+Текст озвучки: "{voiceover_text}"
+
+Длительность аудио: {audio_duration} секунд
+
+Доступные материалы:
+{materials_summary}
+
+Раздели видео на 5-10 сегментов по 3-8 секунд каждый. Для каждого сегмента:
+1. start_time, end_time (в секундах)
+2. text_snippet - фрагмент текста для этого момента
+3. material_id - ID подходящего материала (или "MISSING" если нет подходящего)
+4. rationale - почему этот материал подходит
+
+Верни JSON:
+{{
+  "timeline": [
+    {{
+      "start_time": 0.0,
+      "end_time": 5.2,
+      "text_snippet": "...",
+      "material_id": "mat_xxx",
+      "rationale": "..."
+    }}
+  ]
+}}"""
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": "Ты эксперт видеомонтажа. Создаёшь тайминги."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.5,
+                response_format={"type": "json_object"}
+            )
+            
+            result = response.choices[0].message.content
+            import json
+            timeline_data = json.loads(result)
+            return timeline_data.get('timeline', [])
+        except Exception as e:
+            current_app.logger.error(f"Timeline generation failed: {str(e)}")
+            return []
 
 
 # Global instance
