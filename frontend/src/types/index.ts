@@ -1,5 +1,13 @@
-export interface Blogger {
-  id: string
+export interface Blo  audio_url?: string
+  audio_alignment?: {
+    alignment: Array<{
+      character: string
+      character_start_times_seconds: number[]
+      character_end_times_seconds: number[]
+    }>
+    audio_duration: number
+  }
+  materials?: any[]string
   name: string
   type: string
   frontal_image_url?: string
