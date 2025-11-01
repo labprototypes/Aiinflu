@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Project, Blogger
-from app.utils import gpt_helper, elevenlabs_helper, s3_helper, tmdb_helper, falai_helper, ffmpeg_helper
+from app.utils import gpt_helper, elevenlabs_helper, s3_helper, falai_helper, ffmpeg_helper
 from werkzeug.utils import secure_filename
 import uuid
 
@@ -190,57 +190,6 @@ def analyze_materials(project_id):
         
         return jsonify({
             'analysis': analysis,
-            'project': project.to_dict()
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@bp.route('/<project_id>/search-tmdb', methods=['POST'])
-def search_tmdb(project_id):
-    """Search TMDB for movie/show materials"""
-    project = Project.query.get_or_404(project_id)
-    data = request.get_json()
-    
-    title = data.get('title')
-    if not title:
-        return jsonify({'error': 'Title required'}), 400
-    
-    try:
-        # Try cross-language match if secondary title provided
-        title_secondary = data.get('title_secondary')
-        if title_secondary:
-            result = tmdb_helper.match_cross_language(title, title_secondary)
-        else:
-            movie = tmdb_helper.search_movie(title)
-            if movie:
-                images = tmdb_helper.get_movie_images(movie['id'])
-                result = {**movie, 'images': images}
-            else:
-                result = None
-        
-        if not result:
-            return jsonify({'error': 'Movie not found'}), 404
-        
-        # Add TMDB images as materials
-        for img_url in result.get('images', []):
-            material = {
-                'id': str(uuid.uuid4()),
-                'url': img_url,
-                'type': 'image',
-                'source': 'tmdb',
-                'tmdb_id': result['id'],
-                'description': f"From {result.get('title_en', title)}"
-            }
-            if not project.materials:
-                project.materials = []
-            project.materials.append(material)
-        
-        db.session.commit()
-        
-        return jsonify({
-            'tmdb_result': result,
-            'materials_added': len(result.get('images', [])),
             'project': project.to_dict()
         })
     except Exception as e:

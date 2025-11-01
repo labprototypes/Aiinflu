@@ -32,8 +32,6 @@ services:
         sync: false
       - key: FAL_KEY
         sync: false
-      - key: TMDB_API_KEY
-        sync: false
       - key: REDIS_URL
         sync: false
 

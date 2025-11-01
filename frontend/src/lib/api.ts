@@ -40,8 +40,6 @@ export const projectsApi = {
     })
   },
   analyzeMaterials: (id: string) => api.post(`/projects/${id}/analyze-materials`),
-  searchTMDB: (id: string, title: string, titleSecondary?: string) =>
-    api.post(`/projects/${id}/search-tmdb`, { title, title_secondary: titleSecondary }),
   generateTimeline: (id: string) => api.post(`/projects/${id}/generate-timeline`),
   generateAvatarVideo: (id: string, params?: { expression_scale?: number; face_enhance?: boolean }) =>
     api.post(`/projects/${id}/generate-avatar-video`, params),

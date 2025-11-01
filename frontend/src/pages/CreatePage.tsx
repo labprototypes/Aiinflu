@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
-import { Loader2, Play, Pause, Check, Upload, Film, Sparkles, Trash2, Video, Download } from 'lucide-react'
+import { Loader2, Play, Pause, Check, Upload, Sparkles, Video, Download } from 'lucide-react'
 import { bloggersApi, projectsApi } from '@/lib/api'
 import { Blogger, Project } from '@/types'
 import Stepper from '@/components/Stepper'
@@ -22,8 +22,6 @@ export default function CreatePage() {
   const [scenario, setScenario] = useState('')
   const [voiceoverText, setVoiceoverText] = useState('')
   const [isPlaying, setIsPlaying] = useState(false)
-  const [tmdbTitle, setTmdbTitle] = useState('')
-  const [tmdbTitleSecondary, setTmdbTitleSecondary] = useState('')
   const [expressionScale, setExpressionScale] = useState(1.0)
   const [addSubtitles, setAddSubtitles] = useState(true)
   const queryClient = useQueryClient()
@@ -91,16 +89,6 @@ export default function CreatePage() {
     mutationFn: (id: string) => projectsApi.analyzeMaterials(id),
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
-    },
-  })
-
-  const searchTMDBMutation = useMutation({
-    mutationFn: ({ id, title, titleSecondary }: { id: string; title: string; titleSecondary?: string }) =>
-      projectsApi.searchTMDB(id, title, titleSecondary),
-    onSuccess: (response) => {
-      setCurrentProject(response.data.project)
-      setTmdbTitle('')
-      setTmdbTitleSecondary('')
     },
   })
 
@@ -176,16 +164,6 @@ export default function CreatePage() {
   const handleAnalyzeMaterials = () => {
     if (currentProject) {
       analyzeMaterialsMutation.mutate(currentProject.id)
-    }
-  }
-
-  const handleSearchTMDB = () => {
-    if (currentProject && tmdbTitle) {
-      searchTMDBMutation.mutate({
-        id: currentProject.id,
-        title: tmdbTitle,
-        titleSecondary: tmdbTitleSecondary || undefined,
-      })
     }
   }
 
@@ -389,38 +367,6 @@ export default function CreatePage() {
                 <p className="text-white/60 mb-2">Загрузите изображения или видео</p>
                 <p className="text-sm text-white/40">Поддержка drag & drop в разработке</p>
               </label>
-            </div>
-
-            {/* TMDB Search */}
-            <div className="glass-card p-6 mb-6">
-              <h4 className="font-bold mb-3 flex items-center gap-2">
-                <Film size={20} />
-                Поиск материалов из TMDB
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                <input
-                  type="text"
-                  value={tmdbTitle}
-                  onChange={(e) => setTmdbTitle(e.target.value)}
-                  placeholder="Название на английском (Tenet)"
-                  className="input-glass"
-                />
-                <input
-                  type="text"
-                  value={tmdbTitleSecondary}
-                  onChange={(e) => setTmdbTitleSecondary(e.target.value)}
-                  placeholder="Название на русском (Довод)"
-                  className="input-glass"
-                />
-              </div>
-              <button
-                onClick={handleSearchTMDB}
-                disabled={!tmdbTitle || searchTMDBMutation.isPending}
-                className="btn-secondary w-full flex items-center justify-center gap-2"
-              >
-                {searchTMDBMutation.isPending && <Loader2 size={20} className="animate-spin" />}
-                Найти в TMDB
-              </button>
             </div>
 
             {/* Materials Grid */}
