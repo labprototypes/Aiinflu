@@ -617,6 +617,28 @@ export default function CreatePage() {
                   })}
                 </div>
               )}
+
+              {/* Next Step Button - Show after timeline is generated */}
+              {currentProject.timeline && currentProject.timeline.length > 0 && currentStep === 4 && (
+                <div className="mt-6">
+                  <button
+                    onClick={() => {
+                      if (currentProject) {
+                        projectsApi
+                          .updateStep(currentProject.id, 5)
+                          .then(() => {
+                            queryClient.invalidateQueries({ queryKey: ['projects'] })
+                            setCurrentProject({ ...currentProject, current_step: 5 })
+                          })
+                      }
+                    }}
+                    className="btn-primary w-full flex items-center justify-center gap-2"
+                  >
+                    <Check size={20} />
+                    Далее: Генерация видео с аватаром
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </>
