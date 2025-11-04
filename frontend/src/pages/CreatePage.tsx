@@ -29,6 +29,7 @@ export default function CreatePage() {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
   const [avatarGenStatus, setAvatarGenStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
+  const [avatarRequestId, setAvatarRequestId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   // Load project from navigation state (when continuing from Projects page)
@@ -129,13 +130,47 @@ export default function CreatePage() {
       setAvatarGenStatus('pending')
     },
     onSuccess: (response) => {
-      setCurrentProject(response.data.project)
-      setAvatarGenStatus('done')
+      // Response now contains request_id, not video_url
+      const requestId = response.data.request_id
+      setAvatarRequestId(requestId)
+      // Status will be updated by polling useEffect
     },
     onError: () => {
       setAvatarGenStatus('error')
+      setAvatarRequestId(null)
     },
   })
+
+  // Poll avatar generation status
+  useEffect(() => {
+    if (!avatarRequestId || !currentProject) return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await projectsApi.checkAvatarStatus(currentProject.id, avatarRequestId)
+        const data = response.data
+
+        if (data.status === 'completed' && data.video_url) {
+          setAvatarGenStatus('done')
+          setAvatarRequestId(null)
+          // Refresh project to get updated video_url
+          const projectResponse = await projectsApi.getById(currentProject.id)
+          setCurrentProject(projectResponse.data)
+          queryClient.invalidateQueries({ queryKey: ['projects'] })
+          clearInterval(pollInterval)
+        } else if (data.status === 'error') {
+          setAvatarGenStatus('error')
+          setAvatarRequestId(null)
+          clearInterval(pollInterval)
+        }
+        // else: still processing, continue polling
+      } catch (error) {
+        console.error('Avatar status check failed:', error)
+      }
+    }, 5000) // Check every 5 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [avatarRequestId, currentProject, queryClient])
 
   const composeFinalMutation = useMutation({
     mutationFn: ({ id, options }: { id: string; options?: any }) =>

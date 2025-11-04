@@ -305,7 +305,7 @@ def generate_timeline(project_id):
 
 @bp.route('/projects/<project_id>/generate-avatar-video', methods=['POST'])
 def generate_avatar_video(project_id):
-    """Generate talking avatar video using fal.ai InfiniTalk"""
+    """Generate talking avatar video using fal.ai InfiniTalk (async)"""
     project = Project.query.get_or_404(project_id)
     
     if not project.audio_url:
@@ -319,24 +319,27 @@ def generate_avatar_video(project_id):
         expression_scale = data.get('expression_scale', 1.0)
         face_enhance = data.get('face_enhance', True)
         
-        result = falai_helper.generate_avatar_video(
+        # Start async generation (returns immediately with request_id)
+        result = falai_helper.start_avatar_generation(
             audio_url=project.audio_url,
             image_url=project.blogger.frontal_image_url,
             expression_scale=expression_scale,
             face_enhance=face_enhance
         )
         
-        project.avatar_video_url = result['video_url']
+        # Save request_id for status polling
         project.avatar_generation_params = {
             'expression_scale': expression_scale,
             'face_enhance': face_enhance,
-            'fal_request_id': result.get('request_id')
+            'fal_request_id': result['request_id'],
+            'status': 'processing'
         }
-        project.current_step = 5
         db.session.commit()
         
         return jsonify({
-            'avatar_video_url': result['video_url'],
+            'request_id': result['request_id'],
+            'status': 'processing',
+            'message': 'Avatar video generation started. Use check-avatar-status to poll for completion.',
             'project': project.to_dict()
         })
     except Exception as e:

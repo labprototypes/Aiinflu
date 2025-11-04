@@ -9,6 +9,60 @@ class FalAIHelper:
     """Helper for fal.ai InfiniTalk video generation"""
     
     @staticmethod
+    def start_avatar_generation(
+        audio_url: str,
+        image_url: str,
+        expression_scale: float = 1.0,
+        face_enhance: bool = True
+    ) -> Dict:
+        """
+        Start async talking avatar video generation using fal.ai InfiniTalk
+        Returns immediately with request_id for status polling.
+        
+        Args:
+            audio_url: URL to audio file (must be publicly accessible)
+            image_url: URL to avatar image (frontal photo)
+            expression_scale: Not used in InfiniTalk (kept for API compatibility)
+            face_enhance: Not used in InfiniTalk (kept for API compatibility)
+            
+        Returns:
+            Dict with request_id for polling
+        """
+        api_key = current_app.config.get('FAL_KEY')
+        if not api_key:
+            raise ValueError("FAL_KEY not configured")
+        
+        try:
+            current_app.logger.info(f"Starting fal.ai InfiniTalk generation (async)...")
+            current_app.logger.info(f"Audio URL: {audio_url}")
+            current_app.logger.info(f"Image URL: {image_url}")
+            
+            # Submit async request (returns immediately)
+            handler = fal_client.submit(
+                "fal-ai/infinitalk",
+                arguments={
+                    "audio_url": audio_url,
+                    "image_url": image_url,
+                    "prompt": "A professional content creator speaking naturally on camera",
+                    "resolution": "720p",
+                    "num_frames": 145,
+                    "acceleration": "regular"
+                }
+            )
+            
+            request_id = handler.request_id
+            current_app.logger.info(f"fal.ai request submitted: {request_id}")
+            
+            return {
+                'request_id': request_id,
+                'status': 'processing'
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"fal.ai generation error: {str(e)}")
+            raise
+    
+    @staticmethod
     def generate_avatar_video(
         audio_url: str,
         image_url: str,
@@ -16,7 +70,8 @@ class FalAIHelper:
         face_enhance: bool = True
     ) -> Dict:
         """
-        Generate talking avatar video using fal.ai InfiniTalk
+        Generate talking avatar video using fal.ai InfiniTalk (BLOCKING - deprecated)
+        Use start_avatar_generation() + check_status() instead for async operation.
         
         Args:
             audio_url: URL to audio file (must be publicly accessible)
@@ -82,19 +137,33 @@ class FalAIHelper:
             request_id: fal.ai request ID
             
         Returns:
-            Dict with status info
+            Dict with status info and video_url if completed
         """
         try:
-            # Use get() method on the handler
+            current_app.logger.info(f"Checking fal.ai status for request: {request_id}")
+            
+            # Get handler for this request_id
             handler = fal_client.submit("fal-ai/infinitalk", arguments={})
             handler.request_id = request_id
             
-            result = handler.get()
-            
-            return {
-                'status': 'completed',
-                'video_url': result.get('video', {}).get('url')
-            }
+            # Try to get result (non-blocking check)
+            try:
+                result = handler.get(timeout=1)  # 1 second timeout for quick check
+                video_url = result.get('video', {}).get('url')
+                
+                if video_url:
+                    current_app.logger.info(f"fal.ai generation completed: {video_url}")
+                    return {
+                        'status': 'completed',
+                        'video_url': video_url
+                    }
+                else:
+                    return {'status': 'processing'}
+                    
+            except TimeoutError:
+                # Still processing
+                return {'status': 'processing'}
+                
         except Exception as e:
             current_app.logger.error(f"fal.ai status check error: {str(e)}")
             return {
