@@ -526,6 +526,28 @@ export default function CreatePage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Next Step Button - Show after successful analysis */}
+                {analyzeStatus === 'done' && currentStep === 3 && (
+                  <div className="mt-6">
+                    <button
+                      onClick={() => {
+                        if (currentProject) {
+                          projectsApi
+                            .updateStep(currentProject.id, 4)
+                            .then(() => {
+                              queryClient.invalidateQueries({ queryKey: ['projects'] })
+                              setCurrentProject({ ...currentProject, current_step: 4 })
+                            })
+                        }
+                      }}
+                      className="btn-primary w-full flex items-center justify-center gap-2"
+                    >
+                      <Check size={20} />
+                      Далее: Тайминги
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

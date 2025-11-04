@@ -28,6 +28,7 @@ export const projectsApi = {
   getById: (id: string) => api.get(`/projects/${id}`),
   create: (data: { blogger_id: string }) => api.post('/projects', data),
   update: (id: string, data: any) => api.put(`/projects/${id}`, data),
+  updateStep: (id: string, step: number) => api.put(`/projects/${id}`, { current_step: step }),
   delete: (id: string) => api.delete(`/projects/${id}`),
   extractText: (id: string) => api.post(`/projects/${id}/extract-text`),
   generateAudio: (id: string) => api.post(`/projects/${id}/generate-audio`),
