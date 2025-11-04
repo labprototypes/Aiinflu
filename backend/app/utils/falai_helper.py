@@ -19,10 +19,10 @@ class FalAIHelper:
         Generate talking avatar video using fal.ai InfiniTalk
         
         Args:
-            audio_url: URL to audio file
+            audio_url: URL to audio file (must be publicly accessible)
             image_url: URL to avatar image (frontal photo)
-            expression_scale: Control expression intensity (0.0-2.0)
-            face_enhance: Enable face enhancement
+            expression_scale: Not used in InfiniTalk (kept for API compatibility)
+            face_enhance: Not used in InfiniTalk (kept for API compatibility)
             
         Returns:
             Dict with video_url and request_id
@@ -32,19 +32,21 @@ class FalAIHelper:
             raise ValueError("FAL_KEY not configured")
         
         try:
-            # Submit generation request
+            # Submit generation request to InfiniTalk
             result = fal_client.submit(
-                "fal-ai/infini-talk",
+                "fal-ai/infinitalk",
                 arguments={
                     "audio_url": audio_url,
                     "image_url": image_url,
-                    "expression_scale": expression_scale,
-                    "face_enhance": face_enhance,
+                    "prompt": "A professional content creator speaking naturally on camera",
+                    "resolution": "720p",
+                    "num_frames": 145,
+                    "acceleration": "regular"
                 }
             )
             
             request_id = result.request_id
-            current_app.logger.info(f"fal.ai video generation started: {request_id}")
+            current_app.logger.info(f"fal.ai InfiniTalk generation started: {request_id}")
             
             # Poll for completion
             return FalAIHelper.poll_generation_status(request_id)
@@ -70,14 +72,14 @@ class FalAIHelper:
         
         for attempt in range(max_attempts):
             try:
-                status = fal_client.status("fal-ai/infini-talk", request_id, with_logs=False)
+                status = fal_client.status("fal-ai/infinitalk", request_id, with_logs=False)
                 
                 if status.completed:
-                    result = fal_client.result("fal-ai/infini-talk", request_id)
+                    result = fal_client.result("fal-ai/infinitalk", request_id)
                     video_url = result.get('video', {}).get('url')
                     
                     if video_url:
-                        current_app.logger.info(f"fal.ai generation complete: {video_url}")
+                        current_app.logger.info(f"fal.ai InfiniTalk generation complete: {video_url}")
                         return {
                             'video_url': video_url,
                             'request_id': request_id,
@@ -109,10 +111,10 @@ class FalAIHelper:
             Dict with status info
         """
         try:
-            status = fal_client.status("fal-ai/infini-talk", request_id, with_logs=False)
+            status = fal_client.status("fal-ai/infinitalk", request_id, with_logs=False)
             
             if status.completed:
-                result = fal_client.result("fal-ai/infini-talk", request_id)
+                result = fal_client.result("fal-ai/infinitalk", request_id)
                 return {
                     'status': 'completed',
                     'video_url': result.get('video', {}).get('url')

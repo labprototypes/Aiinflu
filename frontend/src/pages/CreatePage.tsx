@@ -28,6 +28,7 @@ export default function CreatePage() {
   const [addSubtitles, setAddSubtitles] = useState(true)
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
+  const [avatarGenStatus, setAvatarGenStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
   const queryClient = useQueryClient()
 
   // Load project from navigation state (when continuing from Projects page)
@@ -124,8 +125,15 @@ export default function CreatePage() {
   const generateAvatarMutation = useMutation({
     mutationFn: ({ id, params }: { id: string; params?: any }) =>
       projectsApi.generateAvatarVideo(id, params),
+    onMutate: () => {
+      setAvatarGenStatus('pending')
+    },
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
+      setAvatarGenStatus('done')
+    },
+    onError: () => {
+      setAvatarGenStatus('error')
     },
   })
 
@@ -650,6 +658,20 @@ export default function CreatePage() {
           {/* Step 5: Avatar Video Generation */}
           <div className="glass-card p-8 mb-6">
             <h3 className="text-xl font-bold mb-4">Этап 5: Генерация видео с аватаром</h3>
+
+            {/* Generation status banners */}
+            {avatarGenStatus === 'pending' && (
+              <div className="p-3 mb-4 bg-yellow-600/20 rounded flex items-center gap-2">
+                <Loader2 size={16} className="animate-spin" />
+                <span>Генерация видео в процессе... Это может занять 1-3 минуты.</span>
+              </div>
+            )}
+            {avatarGenStatus === 'done' && (
+              <div className="p-3 mb-4 bg-green-600/10 rounded">✅ Генерация завершена успешно!</div>
+            )}
+            {avatarGenStatus === 'error' && (
+              <div className="p-3 mb-4 bg-red-600/10 rounded">❌ Ошибка генерации. Проверьте логи или попробуйте ещё раз.</div>
+            )}
 
             {!currentProject.avatar_video_url ? (
               <div>
