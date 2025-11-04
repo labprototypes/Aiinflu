@@ -153,20 +153,28 @@ class GPTHelper:
         
         audio_duration = audio_alignment.get('audio_duration', 30)
         
+        # Format materials list for prompt
+        materials_text = "\n".join([
+            f"- ID: {mat['id']}\n  Название: {mat['description']}"
+            for mat in materials_summary
+        ])
+        
         prompt = f"""Создай тайминги для видео на основе озвучки и доступных материалов.
 
 Текст озвучки: "{voiceover_text}"
 
 Длительность аудио: {audio_duration} секунд
 
-Доступные материалы:
-{materials_summary}
+Доступные материалы (постеры фильмов):
+{materials_text}
+
+ВАЖНО: Используй ТОЧНЫЕ ID материалов из списка выше! Не придумывай новые ID.
 
 Раздели видео на 5-10 сегментов по 3-8 секунд каждый. Для каждого сегмента:
 1. start_time, end_time (в секундах)
-2. text_snippet - фрагмент текста для этого момента
-3. material_id - ID подходящего материала (или "MISSING" если нет подходящего)
-4. rationale - почему этот материал подходит
+2. text_snippet - фрагмент текста озвучки для этого момента
+3. material_id - ТОЧНЫЙ ID материала из списка выше (например "{materials_summary[0]['id'] if materials_summary else 'abc123'}") или "MISSING" если нет подходящего
+4. rationale - почему этот материал подходит к данному фрагменту текста
 
 Верни JSON:
 {{
@@ -175,7 +183,7 @@ class GPTHelper:
       "start_time": 0.0,
       "end_time": 5.2,
       "text_snippet": "...",
-      "material_id": "mat_xxx",
+      "material_id": "{materials_summary[0]['id'] if materials_summary else 'MISSING'}",
       "rationale": "..."
     }}
   ]
