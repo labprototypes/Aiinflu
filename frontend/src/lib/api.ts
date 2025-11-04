@@ -39,6 +39,8 @@ export const projectsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  deleteMaterial: (projectId: string, materialId: string) =>
+    api.delete(`/projects/${projectId}/materials/${materialId}`),
   analyzeMaterials: (id: string) => api.post(`/projects/${id}/analyze-materials`),
   generateTimeline: (id: string) => api.post(`/projects/${id}/generate-timeline`),
   generateAvatarVideo: (id: string, params?: { expression_scale?: number; face_enhance?: boolean }) =>

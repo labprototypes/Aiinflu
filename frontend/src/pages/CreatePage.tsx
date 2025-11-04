@@ -85,6 +85,16 @@ export default function CreatePage() {
       projectsApi.uploadMaterial(id, file, type),
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+
+  const deleteMaterialMutation = useMutation({
+    mutationFn: ({ projectId, materialId }: { projectId: string; materialId: string }) =>
+      projectsApi.deleteMaterial(projectId, materialId),
+    onSuccess: (response) => {
+      setCurrentProject(response.data.project)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 
@@ -92,6 +102,7 @@ export default function CreatePage() {
     mutationFn: (id: string) => projectsApi.analyzeMaterials(id),
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 
@@ -223,6 +234,15 @@ export default function CreatePage() {
 
   const handleRemoveUpload = (id: string) => {
     setUploadingFiles((prev) => prev.filter((u) => u.id !== id))
+  }
+
+  const handleDeleteMaterial = (materialId: string) => {
+    if (currentProject && confirm('Удалить этот материал?')) {
+      deleteMaterialMutation.mutate({
+        projectId: currentProject.id,
+        materialId,
+      })
+    }
   }
 
   const handleAnalyzeMaterials = () => {
@@ -453,7 +473,7 @@ export default function CreatePage() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {currentProject.materials.map((material: any) => (
-                    <div key={material.id} className="glass-card p-2">
+                    <div key={material.id} className="glass-card p-2 relative group">
                       <img
                         src={material.url}
                         alt="Material"
@@ -462,6 +482,19 @@ export default function CreatePage() {
                       {material.analysis && (
                         <p className="text-xs text-white/60 line-clamp-2">{material.analysis}</p>
                       )}
+                      
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleDeleteMaterial(material.id)}
+                        disabled={deleteMaterialMutation.isPending}
+                        className="absolute top-1 right-1 p-2 bg-red-600 hover:bg-red-700 
+                                 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity
+                                 disabled:opacity-50"
+                        title="Удалить материал"
+                      >
+                        <Loader2 size={16} className={deleteMaterialMutation.isPending ? 'animate-spin' : 'hidden'} />
+                        <span className={deleteMaterialMutation.isPending ? 'hidden' : 'block'}>✕</span>
+                      </button>
                     </div>
                   ))}
                 </div>

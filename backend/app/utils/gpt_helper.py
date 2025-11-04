@@ -81,7 +81,7 @@ class GPTHelper:
         for url in image_urls:
             try:
                 response = client.chat.completions.create(
-                    model="gpt-4-vision-preview",
+                    model="gpt-4o",  # Updated to latest vision model
                     messages=[
                         {
                             "role": "user",

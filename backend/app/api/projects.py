@@ -188,9 +188,41 @@ def upload_material(project_id):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/projects/<project_id>/materials/<material_id>', methods=['DELETE'])
+def delete_material(project_id, material_id):
+    """Delete material from project"""
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.materials:
+        return jsonify({'error': 'No materials found'}), 404
+    
+    try:
+        # Find and remove material
+        material_to_delete = None
+        for mat in project.materials:
+            if mat.get('id') == material_id:
+                material_to_delete = mat
+                break
+        
+        if not material_to_delete:
+            return jsonify({'error': 'Material not found'}), 404
+        
+        # Delete from S3
+        s3_helper.delete_file(material_to_delete['url'])
+        
+        # Remove from project
+        project.materials = [mat for mat in project.materials if mat.get('id') != material_id]
+        db.session.commit()
+        
+        return jsonify({'success': True, 'project': project.to_dict()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/projects/<project_id>/analyze-materials', methods=['POST'])
 def analyze_materials(project_id):
     """Analyze materials using GPT-4 Vision"""
+    from flask import current_app
     project = Project.query.get_or_404(project_id)
     
     if not project.materials:
@@ -200,21 +232,34 @@ def analyze_materials(project_id):
         # Get image URLs
         image_urls = [mat['url'] for mat in project.materials if mat.get('type') == 'image']
         
-        # Analyze with GPT Vision
-        analysis = gpt_helper.analyze_materials_with_vision(image_urls)
+        if not image_urls:
+            return jsonify({'error': 'No images to analyze'}), 400
+        
+        current_app.logger.info(f"Analyzing {len(image_urls)} images")
+        
+        # Analyze with GPT Vision - returns list of dicts
+        analysis_results = gpt_helper.analyze_materials_with_vision(image_urls)
+        
+        current_app.logger.info(f"Analysis complete: {len(analysis_results)} results")
         
         # Update materials with analysis
-        for i, mat in enumerate(project.materials):
-            if mat.get('type') == 'image' and i < len(analysis.get('images', [])):
-                mat.update(analysis['images'][i])
+        url_to_analysis = {result['url']: result.get('analysis') for result in analysis_results}
+        
+        for mat in project.materials:
+            if mat.get('type') == 'image' and mat['url'] in url_to_analysis:
+                mat['analysis'] = url_to_analysis[mat['url']]
         
         db.session.commit()
         
         return jsonify({
-            'analysis': analysis,
+            'success': True,
+            'analyzed_count': len(analysis_results),
             'project': project.to_dict()
         })
     except Exception as e:
+        current_app.logger.error(f"Analysis failed: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
