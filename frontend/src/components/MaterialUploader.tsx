@@ -20,7 +20,7 @@ interface MaterialUploaderProps {
 
 export default function MaterialUploader({
   onFilesSelected,
-  maxFiles = 10,
+    maxFiles = 20,
   accept = 'image/*,video/*',
   disabled = false,
 }: MaterialUploaderProps) {

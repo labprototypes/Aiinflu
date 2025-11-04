@@ -27,6 +27,7 @@ export default function CreatePage() {
   const [expressionScale, setExpressionScale] = useState(1.0)
   const [addSubtitles, setAddSubtitles] = useState(true)
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
+  const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
   const queryClient = useQueryClient()
 
   // Load project from navigation state (when continuing from Projects page)
@@ -100,9 +101,16 @@ export default function CreatePage() {
 
   const analyzeMaterialsMutation = useMutation({
     mutationFn: (id: string) => projectsApi.analyzeMaterials(id),
+    onMutate: () => {
+      setAnalyzeStatus('pending')
+    },
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      setAnalyzeStatus('done')
+    },
+    onError: () => {
+      setAnalyzeStatus('error')
     },
   })
 
@@ -229,6 +237,15 @@ export default function CreatePage() {
           )
         )
       }
+    }
+
+    // After all uploads, refresh project from server to get authoritative materials list
+    try {
+      const resp = await projectsApi.getById(currentProject.id)
+      setCurrentProject(resp.data)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    } catch (e) {
+      // ignore
     }
   }
 
@@ -452,6 +469,17 @@ export default function CreatePage() {
               onRemove={handleRemoveUpload}
             />
 
+            {/* Analysis status banner */}
+            {analyzeStatus === 'pending' && (
+              <div className="p-3 mb-4 bg-yellow-600/20 rounded">Анализ изображений в процессе...</div>
+            )}
+            {analyzeStatus === 'done' && (
+              <div className="p-3 mb-4 bg-green-600/10 rounded">Анализ завершён — результаты отображены под превью.</div>
+            )}
+            {analyzeStatus === 'error' && (
+              <div className="p-3 mb-4 bg-red-600/10 rounded">Ошибка анализа — проверьте логи.</div>
+            )}
+
             {/* Materials Grid */}
             {currentProject.materials && currentProject.materials.length > 0 && (
               <div className="mt-6">
@@ -480,7 +508,7 @@ export default function CreatePage() {
                         className="w-full h-32 object-cover rounded mb-2"
                       />
                       {material.analysis && (
-                        <p className="text-xs text-white/60 line-clamp-2">{material.analysis}</p>
+                        <p className="text-xs text-white/60 line-clamp-3">{material.analysis}</p>
                       )}
                       
                       {/* Delete Button */}
