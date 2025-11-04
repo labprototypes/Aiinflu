@@ -180,7 +180,12 @@ def upload_material(project_id):
         # Add to project materials
         if not project.materials:
             project.materials = []
-        project.materials.append(material)
+        
+        # IMPORTANT: Create new list to trigger SQLAlchemy update for JSON field
+        materials_list = list(project.materials) if project.materials else []
+        materials_list.append(material)
+        project.materials = materials_list
+        
         db.session.commit()
         
         return jsonify({'material': material, 'project': project.to_dict()})
@@ -245,10 +250,15 @@ def analyze_materials(project_id):
         # Update materials with analysis
         url_to_analysis = {result['url']: result.get('analysis') for result in analysis_results}
         
+        # IMPORTANT: Create new list to trigger SQLAlchemy update for JSON field
+        updated_materials = []
         for mat in project.materials:
+            mat_copy = dict(mat)
             if mat.get('type') == 'image' and mat['url'] in url_to_analysis:
-                mat['analysis'] = url_to_analysis[mat['url']]
+                mat_copy['analysis'] = url_to_analysis[mat['url']]
+            updated_materials.append(mat_copy)
         
+        project.materials = updated_materials
         db.session.commit()
         
         return jsonify({
