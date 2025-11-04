@@ -67,19 +67,25 @@ class S3Helper:
         client = self._get_client()
         
         try:
+            # Upload without ACL (modern S3 buckets don't support ACLs by default)
             client.upload_fileobj(
                 file,
                 bucket,
                 s3_key,
                 ExtraArgs={
-                    'ContentType': content_type,
-                    'ACL': 'public-read'  # Make file publicly accessible
+                    'ContentType': content_type
                 }
             )
             
-            # Generate public URL
-            region = current_app.config['AWS_REGION']
-            url = f"https://{bucket}.s3.{region}.amazonaws.com/{s3_key}"
+            # Generate pre-signed URL (valid for 7 days)
+            url = client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': bucket,
+                    'Key': s3_key
+                },
+                ExpiresIn=604800  # 7 days in seconds
+            )
             return url
             
         except Exception as e:
