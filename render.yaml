@@ -6,7 +6,7 @@ services:
     env: python
     region: oregon
     buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT run:app
+    startCommand: cd backend && gunicorn --bind 0.0.0.0:$PORT --timeout 180 --workers 2 run:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.1

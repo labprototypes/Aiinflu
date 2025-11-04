@@ -32,8 +32,13 @@ class FalAIHelper:
             raise ValueError("FAL_KEY not configured")
         
         try:
-            # Submit generation request to InfiniTalk
-            result = fal_client.submit(
+            current_app.logger.info(f"Starting fal.ai InfiniTalk generation...")
+            current_app.logger.info(f"Audio URL: {audio_url}")
+            current_app.logger.info(f"Image URL: {image_url}")
+            
+            # Use subscribe() which waits for completion (blocking)
+            # This is intentional - we want the request to wait for the video
+            handler = fal_client.submit(
                 "fal-ai/infinitalk",
                 arguments={
                     "audio_url": audio_url,
@@ -45,59 +50,28 @@ class FalAIHelper:
                 }
             )
             
-            request_id = result.request_id
-            current_app.logger.info(f"fal.ai InfiniTalk generation started: {request_id}")
+            request_id = handler.request_id
+            current_app.logger.info(f"fal.ai request submitted: {request_id}")
             
-            # Poll for completion
-            return FalAIHelper.poll_generation_status(request_id)
+            # Wait for result (will block until complete, typically 60-120 seconds)
+            result = handler.get()
+            
+            video_url = result.get('video', {}).get('url')
+            
+            if not video_url:
+                raise ValueError("No video URL in fal.ai response")
+            
+            current_app.logger.info(f"fal.ai InfiniTalk generation complete: {video_url}")
+            
+            return {
+                'video_url': video_url,
+                'request_id': request_id,
+                'status': 'completed'
+            }
             
         except Exception as e:
             current_app.logger.error(f"fal.ai generation error: {str(e)}")
             raise
-    
-    @staticmethod
-    def poll_generation_status(request_id: str, max_attempts: int = 60, delay: int = 10) -> Dict:
-        """
-        Poll fal.ai for generation status
-        
-        Args:
-            request_id: fal.ai request ID
-            max_attempts: Maximum polling attempts
-            delay: Seconds between polls
-            
-        Returns:
-            Dict with video_url when complete
-        """
-        api_key = current_app.config.get('FAL_KEY')
-        
-        for attempt in range(max_attempts):
-            try:
-                status = fal_client.status("fal-ai/infinitalk", request_id, with_logs=False)
-                
-                if status.completed:
-                    result = fal_client.result("fal-ai/infinitalk", request_id)
-                    video_url = result.get('video', {}).get('url')
-                    
-                    if video_url:
-                        current_app.logger.info(f"fal.ai InfiniTalk generation complete: {video_url}")
-                        return {
-                            'video_url': video_url,
-                            'request_id': request_id,
-                            'status': 'completed'
-                        }
-                
-                # Still processing
-                current_app.logger.info(f"fal.ai generation in progress (attempt {attempt + 1}/{max_attempts})")
-                time.sleep(delay)
-                
-            except Exception as e:
-                current_app.logger.error(f"fal.ai polling error: {str(e)}")
-                if attempt < max_attempts - 1:
-                    time.sleep(delay)
-                else:
-                    raise
-        
-        raise TimeoutError(f"fal.ai generation timeout after {max_attempts * delay} seconds")
     
     @staticmethod
     def check_status(request_id: str) -> Dict:
@@ -111,19 +85,16 @@ class FalAIHelper:
             Dict with status info
         """
         try:
-            status = fal_client.status("fal-ai/infinitalk", request_id, with_logs=False)
+            # Use get() method on the handler
+            handler = fal_client.submit("fal-ai/infinitalk", arguments={})
+            handler.request_id = request_id
             
-            if status.completed:
-                result = fal_client.result("fal-ai/infinitalk", request_id)
-                return {
-                    'status': 'completed',
-                    'video_url': result.get('video', {}).get('url')
-                }
-            else:
-                return {
-                    'status': 'processing',
-                    'logs': status.logs if hasattr(status, 'logs') else []
-                }
+            result = handler.get()
+            
+            return {
+                'status': 'completed',
+                'video_url': result.get('video', {}).get('url')
+            }
         except Exception as e:
             current_app.logger.error(f"fal.ai status check error: {str(e)}")
             return {
