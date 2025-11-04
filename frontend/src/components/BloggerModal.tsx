@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { X, Upload, Loader2 } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 import type { Blogger } from '@/types'
 import { bloggersApi } from '@/lib/api'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import ImageDropzone from './ImageDropzone'
 
 interface BloggerModalProps {
   blogger?: Blogger | null
@@ -36,19 +37,24 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     },
   })
 
-  const handleImageChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    type: 'frontal' | 'location'
-  ) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (type === 'frontal') {
-        setFrontalImage(file)
-        setFrontalPreview(URL.createObjectURL(file))
-      } else {
-        setLocationImage(file)
-        setLocationPreview(URL.createObjectURL(file))
-      }
+  const handleImageChange = (file: File, type: 'frontal' | 'location') => {
+    const preview = URL.createObjectURL(file)
+    if (type === 'frontal') {
+      setFrontalImage(file)
+      setFrontalPreview(preview)
+    } else {
+      setLocationImage(file)
+      setLocationPreview(preview)
+    }
+  }
+
+  const handleImageClear = (type: 'frontal' | 'location') => {
+    if (type === 'frontal') {
+      setFrontalImage(null)
+      setFrontalPreview('')
+    } else {
+      setLocationImage(null)
+      setLocationPreview('')
     }
   }
 
@@ -110,70 +116,22 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
           </div>
 
           {/* Frontal Image */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Фронтальное изображение</label>
-            <div className="glass-card p-4">
-              {frontalPreview ? (
-                <div className="relative">
-                  <img src={frontalPreview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFrontalImage(null)
-                      setFrontalPreview('')
-                    }}
-                    className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ) : (
-                <label className="cursor-pointer flex flex-col items-center justify-center h-48 border-2 border-dashed border-white/20 rounded-lg hover:border-white/40 transition-smooth">
-                  <Upload size={32} className="text-white/40 mb-2" />
-                  <span className="text-white/60">Нажмите для загрузки</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageChange(e, 'frontal')}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
-          </div>
+          <ImageDropzone
+            label="Фронтальное изображение"
+            value={frontalPreview}
+            onChange={(file) => handleImageChange(file, 'frontal')}
+            onClear={() => handleImageClear('frontal')}
+            disabled={mutation.isPending}
+          />
 
           {/* Location Image */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Блогер в локации</label>
-            <div className="glass-card p-4">
-              {locationPreview ? (
-                <div className="relative">
-                  <img src={locationPreview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLocationImage(null)
-                      setLocationPreview('')
-                    }}
-                    className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-lg hover:bg-red-600"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ) : (
-                <label className="cursor-pointer flex flex-col items-center justify-center h-48 border-2 border-dashed border-white/20 rounded-lg hover:border-white/40 transition-smooth">
-                  <Upload size={32} className="text-white/40 mb-2" />
-                  <span className="text-white/60">Нажмите для загрузки</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageChange(e, 'location')}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
-          </div>
+          <ImageDropzone
+            label="Блогер в локации"
+            value={locationPreview}
+            onChange={(file) => handleImageChange(file, 'location')}
+            onClear={() => handleImageClear('location')}
+            disabled={mutation.isPending}
+          />
 
           {/* Tone of Voice */}
           <div>
