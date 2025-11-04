@@ -72,7 +72,8 @@ class S3Helper:
                 bucket,
                 s3_key,
                 ExtraArgs={
-                    'ContentType': content_type
+                    'ContentType': content_type,
+                    'ACL': 'public-read'  # Make file publicly accessible
                 }
             )
             
