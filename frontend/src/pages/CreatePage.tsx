@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
-import { Loader2, Play, Pause, Check, Upload, Sparkles, Video, Download } from 'lucide-react'
+import { Loader2, Play, Pause, Check, Sparkles, Video, Download } from 'lucide-react'
 import { bloggersApi, projectsApi } from '@/lib/api'
 import type { Blogger, Project } from '@/types'
 import Stepper from '@/components/Stepper'
+import MaterialUploader, { UploadPreview } from '@/components/MaterialUploader'
+import type { UploadingFile } from '@/components/MaterialUploader'
 
 const STEPS = [
   { number: 1, title: 'Подготовка' },
@@ -24,6 +26,7 @@ export default function CreatePage() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [expressionScale, setExpressionScale] = useState(1.0)
   const [addSubtitles, setAddSubtitles] = useState(true)
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const queryClient = useQueryClient()
 
   // Load project from navigation state (when continuing from Projects page)
@@ -151,14 +154,75 @@ export default function CreatePage() {
     }
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files && files.length > 0 && currentProject) {
-      Array.from(files).forEach((file) => {
-        const type = file.type.startsWith('image/') ? 'image' : 'video'
-        uploadMaterialMutation.mutate({ id: currentProject.id, file, type })
-      })
+  const handleFilesSelected = async (files: File[]) => {
+    if (!currentProject) return
+
+    // Create upload tracking objects
+    const newUploads: UploadingFile[] = files.map((file) => ({
+      id: `${Date.now()}-${Math.random()}`,
+      file,
+      preview: URL.createObjectURL(file),
+      status: 'uploading' as const,
+      progress: 0,
+    }))
+
+    setUploadingFiles((prev) => [...prev, ...newUploads])
+
+    // Upload files one by one
+    for (const upload of newUploads) {
+      try {
+        // Simulate progress
+        const progressInterval = setInterval(() => {
+          setUploadingFiles((prev) =>
+            prev.map((u) =>
+              u.id === upload.id && u.progress < 90
+                ? { ...u, progress: u.progress + 10 }
+                : u
+            )
+          )
+        }, 200)
+
+        const type = upload.file.type.startsWith('image/') ? 'image' : 'video'
+        await uploadMaterialMutation.mutateAsync({
+          id: currentProject.id,
+          file: upload.file,
+          type,
+        })
+
+        clearInterval(progressInterval)
+
+        // Mark as success
+        setUploadingFiles((prev) =>
+          prev.map((u) =>
+            u.id === upload.id
+              ? { ...u, status: 'success' as const, progress: 100 }
+              : u
+          )
+        )
+
+        // Remove from uploading list after 2 seconds
+        setTimeout(() => {
+          setUploadingFiles((prev) => prev.filter((u) => u.id !== upload.id))
+        }, 2000)
+      } catch (error) {
+        // Mark as error
+        setUploadingFiles((prev) =>
+          prev.map((u) =>
+            u.id === upload.id
+              ? {
+                  ...u,
+                  status: 'error' as const,
+                  error: error instanceof Error ? error.message : 'Ошибка загрузки',
+                }
+              : u
+          )
+        )
+      }
     }
+  }
+
+  const handleRemoveUpload = (id: string) => {
+    setUploadingFiles((prev) => prev.filter((u) => u.id !== id))
   }
 
   const handleAnalyzeMaterials = () => {
@@ -352,26 +416,25 @@ export default function CreatePage() {
           <div className="glass-card p-8 mb-6">
             <h3 className="text-xl font-bold mb-4">Этап 3: Загрузка материалов</h3>
 
-            {/* Upload area */}
-            <div className="border-2 border-dashed border-white/20 rounded-lg p-8 mb-6 text-center hover:border-blue-500/50 transition-smooth">
-              <input
-                type="file"
-                multiple
+            {/* Upload area with drag & drop */}
+            <div className="mb-6">
+              <MaterialUploader
+                onFilesSelected={handleFilesSelected}
+                maxFiles={10}
                 accept="image/*,video/*"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="file-upload"
+                disabled={uploadMaterialMutation.isPending}
               />
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <Upload size={48} className="mx-auto mb-4 text-white/40" />
-                <p className="text-white/60 mb-2">Загрузите изображения или видео</p>
-                <p className="text-sm text-white/40">Поддержка drag & drop в разработке</p>
-              </label>
             </div>
+
+            {/* Upload Preview */}
+            <UploadPreview
+              uploadingFiles={uploadingFiles}
+              onRemove={handleRemoveUpload}
+            />
 
             {/* Materials Grid */}
             {currentProject.materials && currentProject.materials.length > 0 && (
-              <div>
+              <div className="mt-6">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="font-bold">Загруженные материалы ({currentProject.materials.length})</h4>
                   <button
