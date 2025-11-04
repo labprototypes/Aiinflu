@@ -146,7 +146,7 @@ export default function CreatePage() {
     if (currentProject) {
       updateScenarioMutation.mutate({
         id: currentProject.id,
-        data: { voiceover_text: voiceoverText, current_step: 2 },
+        data: { voiceover_text: voiceoverText, current_step: 3 },
       })
     }
   }
@@ -282,7 +282,7 @@ export default function CreatePage() {
       )}
 
       {/* Step 2: Voiceover Text & Audio */}
-      {currentProject && currentStep >= 2 && voiceoverText && (
+      {currentProject && currentStep === 2 && voiceoverText && (
         <div className="glass-card p-8 mb-6">
           <h3 className="text-xl font-bold mb-4">Этап 2: Текст для озвучки</h3>
           

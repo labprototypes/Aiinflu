@@ -140,7 +140,7 @@ def generate_audio(project_id):
             'alignment': result.get('alignment'),
             'audio_duration': result.get('audio_duration')
         }
-        project.current_step = 3
+        # Don't auto-advance step - let user approve the audio first
         db.session.commit()
         
         return jsonify({
