@@ -42,11 +42,7 @@ class FalAIHelper:
                 "fal-ai/infinitalk",
                 arguments={
                     "audio_url": audio_url,
-                    "image_url": image_url,
-                    "prompt": "A professional content creator speaking naturally on camera",
-                    "resolution": "720p",
-                    "num_frames": 145,
-                    "acceleration": "regular"
+                    "image_url": image_url
                 }
             )
             
@@ -97,11 +93,7 @@ class FalAIHelper:
                 "fal-ai/infinitalk",
                 arguments={
                     "audio_url": audio_url,
-                    "image_url": image_url,
-                    "prompt": "A professional content creator speaking naturally on camera",
-                    "resolution": "720p",
-                    "num_frames": 145,
-                    "acceleration": "regular"
+                    "image_url": image_url
                 }
             )
             
