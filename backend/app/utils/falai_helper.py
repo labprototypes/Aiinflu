@@ -37,13 +37,16 @@ class FalAIHelper:
             current_app.logger.info(f"Audio URL: {audio_url}")
             current_app.logger.info(f"Image URL: {image_url}")
             
+            arguments_dict = {
+                "audio_url": audio_url,
+                "image_url": image_url
+            }
+            current_app.logger.info(f"fal.ai arguments: {arguments_dict}")
+            
             # Submit async request (returns immediately)
             handler = fal_client.submit(
                 "fal-ai/infinitalk",
-                arguments={
-                    "audio_url": audio_url,
-                    "image_url": image_url
-                }
+                arguments=arguments_dict
             )
             
             request_id = handler.request_id
@@ -56,6 +59,9 @@ class FalAIHelper:
             
         except Exception as e:
             current_app.logger.error(f"fal.ai generation error: {str(e)}")
+            current_app.logger.error(f"Error type: {type(e).__name__}")
+            if hasattr(e, 'response'):
+                current_app.logger.error(f"Response body: {getattr(e.response, 'text', 'N/A')}")
             raise
     
     @staticmethod
@@ -134,45 +140,12 @@ class FalAIHelper:
         try:
             current_app.logger.info(f"Checking fal.ai status for request: {request_id}")
             
-            api_key = current_app.config.get('FAL_KEY')
-            if not api_key:
-                raise ValueError("FAL_KEY not configured")
-            
-            # Reconstruct handler from request_id using fal_client internals
-            import httpx
-            from fal_client import SyncRequestHandle
-            
-            # Create authenticated httpx client
-            http_client = httpx.Client(
-                headers={
-                    'Authorization': f'Key {api_key}',
-                    'Content-Type': 'application/json'
-                },
-                timeout=30.0
-            )
-            
-            # Construct URLs for fal.ai queue API
-            base_url = "https://queue.fal.run"
-            status_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}/status"
-            response_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}"
-            cancel_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}/cancel"
-            
-            # Create handler with authenticated client
-            handler = SyncRequestHandle(
-                request_id=request_id,
-                response_url=response_url,
-                status_url=status_url,
-                cancel_url=cancel_url,
-                client=http_client
-            )
-            
-            # Check status
-            status_response = handler.status()
-            current_app.logger.info(f"Status response type: {type(status_response).__name__}")
-            
-            # If completed, get result
-            if isinstance(status_response, fal_client.Completed):
-                result = handler.get()
+            # Use fal_client.status() method directly - it handles everything internally
+            try:
+                # Try to get result - will raise if not ready
+                result = fal_client.result("fal-ai/infinitalk", request_id)
+                
+                # If we get here, generation is complete
                 video_url = result.get('video', {}).get('url')
                 
                 if video_url:
@@ -181,15 +154,27 @@ class FalAIHelper:
                         'status': 'completed',
                         'video_url': video_url
                     }
-            
-            # Still processing
-            return {'status': 'processing'}
+                else:
+                    current_app.logger.error(f"No video URL in result: {result}")
+                    return {'status': 'error', 'error': 'No video URL in response'}
+                    
+            except Exception as inner_e:
+                # If error contains "IN_PROGRESS" or similar, it means still processing
+                error_msg = str(inner_e).lower()
+                if 'in progress' in error_msg or 'in_progress' in error_msg or 'not completed' in error_msg:
+                    current_app.logger.info(f"Generation still in progress")
+                    return {'status': 'processing'}
+                # Otherwise it's a real error
+                raise
                 
         except Exception as e:
             current_app.logger.error(f"fal.ai status check error: {str(e)}")
-            # If error might be "not ready yet", return processing
-            if 'not found' not in str(e).lower():
-                return {'status': 'processing'}
+            current_app.logger.error(f"Error type: {type(e).__name__}")
+            current_app.logger.error(f"Request ID: {request_id}")
+            if hasattr(e, 'response'):
+                current_app.logger.error(f"Response status: {getattr(e.response, 'status_code', 'N/A')}")
+                current_app.logger.error(f"Response body: {getattr(e.response, 'text', 'N/A')}")
+            # Return error status so frontend can stop polling
             return {
                 'status': 'error',
                 'error': str(e)
