@@ -73,12 +73,22 @@ def update_blogger(blogger_id):
         if blogger.frontal_image_url:
             s3_helper.delete_file(blogger.frontal_image_url)
         blogger.frontal_image_url = s3_helper.upload_file(file, folder='bloggers/frontal')
+    elif data.get('clear_frontal_image') == 'true':
+        # Clear image if requested
+        if blogger.frontal_image_url:
+            s3_helper.delete_file(blogger.frontal_image_url)
+        blogger.frontal_image_url = None
     
     if 'location_image' in request.files:
         file = request.files['location_image']
         if blogger.location_image_url:
             s3_helper.delete_file(blogger.location_image_url)
         blogger.location_image_url = s3_helper.upload_file(file, folder='bloggers/location')
+    elif data.get('clear_location_image') == 'true':
+        # Clear image if requested
+        if blogger.location_image_url:
+            s3_helper.delete_file(blogger.location_image_url)
+        blogger.location_image_url = None
     
     db.session.commit()
     

@@ -14,15 +14,44 @@ interface BloggerModalProps {
 export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalProps) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState({
-    name: blogger?.name || '',
-    type: blogger?.type || 'podcaster',
-    tone_of_voice: blogger?.tone_of_voice || '',
-    elevenlabs_voice_id: blogger?.elevenlabs_voice_id || '',
+    name: '',
+    type: 'podcaster',
+    tone_of_voice: '',
+    elevenlabs_voice_id: '',
   })
   const [frontalImage, setFrontalImage] = useState<File | null>(null)
   const [locationImage, setLocationImage] = useState<File | null>(null)
-  const [frontalPreview, setFrontalPreview] = useState<string>(blogger?.frontal_image_url || '')
-  const [locationPreview, setLocationPreview] = useState<string>(blogger?.location_image_url || '')
+  const [frontalPreview, setFrontalPreview] = useState<string>('')
+  const [locationPreview, setLocationPreview] = useState<string>('')
+
+  // Sync form data when blogger changes or modal opens
+  useEffect(() => {
+    if (isOpen && blogger) {
+      setFormData({
+        name: blogger.name || '',
+        type: blogger.type || 'podcaster',
+        tone_of_voice: blogger.tone_of_voice || '',
+        elevenlabs_voice_id: blogger.elevenlabs_voice_id || '',
+      })
+      setFrontalPreview(blogger.frontal_image_url || '')
+      setLocationPreview(blogger.location_image_url || '')
+      // Reset file inputs when editing
+      setFrontalImage(null)
+      setLocationImage(null)
+    } else if (isOpen && !blogger) {
+      // Reset form for creating new blogger
+      setFormData({
+        name: '',
+        type: 'podcaster',
+        tone_of_voice: '',
+        elevenlabs_voice_id: '',
+      })
+      setFrontalPreview('')
+      setLocationPreview('')
+      setFrontalImage(null)
+      setLocationImage(null)
+    }
+  }, [blogger, isOpen])
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -67,6 +96,17 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     data.append('tone_of_voice', formData.tone_of_voice)
     data.append('elevenlabs_voice_id', formData.elevenlabs_voice_id)
     
+    // If editing and image was cleared (preview is empty but blogger had image)
+    if (blogger) {
+      if (!frontalPreview && blogger.frontal_image_url) {
+        data.append('clear_frontal_image', 'true')
+      }
+      if (!locationPreview && blogger.location_image_url) {
+        data.append('clear_location_image', 'true')
+      }
+    }
+    
+    // Add new images if selected
     if (frontalImage) data.append('frontal_image', frontalImage)
     if (locationImage) data.append('location_image', locationImage)
     
