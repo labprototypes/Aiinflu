@@ -142,29 +142,41 @@ class FalAIHelper:
         try:
             current_app.logger.info(f"Checking fal.ai status for request: {request_id}")
             
-            # Reconstruct handler from request_id using fal_client internals
-            # We need to construct the URLs manually based on fal.ai API structure
-            import httpx
-            from fal_client import SyncRequestHandle, sync_client
+            api_key = current_app.config.get('FAL_KEY')
+            if not api_key:
+                raise ValueError("FAL_KEY not configured")
             
-            # Construct status/result URLs for fal.ai queue API
+            # Reconstruct handler from request_id using fal_client internals
+            import httpx
+            from fal_client import SyncRequestHandle
+            
+            # Create authenticated httpx client
+            http_client = httpx.Client(
+                headers={
+                    'Authorization': f'Key {api_key}',
+                    'Content-Type': 'application/json'
+                },
+                timeout=30.0
+            )
+            
+            # Construct URLs for fal.ai queue API
             base_url = "https://queue.fal.run"
             status_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}/status"
             response_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}"
             cancel_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}/cancel"
             
-            # Create handler with reconstructed URLs
+            # Create handler with authenticated client
             handler = SyncRequestHandle(
                 request_id=request_id,
                 response_url=response_url,
                 status_url=status_url,
                 cancel_url=cancel_url,
-                client=httpx.Client()
+                client=http_client
             )
             
             # Check status
             status_response = handler.status()
-            current_app.logger.info(f"Status response: {status_response}")
+            current_app.logger.info(f"Status response type: {type(status_response).__name__}")
             
             # If completed, get result
             if isinstance(status_response, fal_client.Completed):
