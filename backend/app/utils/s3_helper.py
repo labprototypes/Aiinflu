@@ -161,16 +161,32 @@ class S3Helper:
             
             # Extract S3 key from URL
             # Handle both formats: https://bucket.s3.region.amazonaws.com/key and presigned URLs
-            if '?' in s3_url:
+            if '?' in s3_url and 'X-Amz-' in s3_url:
                 # Already a presigned URL, return as-is
                 return s3_url
             
-            prefix = f"https://{bucket}.s3.{region}.amazonaws.com/"
-            if not s3_url.startswith(prefix):
-                # Not our S3 URL, return as-is
-                return s3_url
+            # Try multiple URL formats
+            s3_key = None
             
-            s3_key = s3_url.replace(prefix, '')
+            # Format 1: https://bucket.s3.region.amazonaws.com/key
+            prefix_with_region = f"https://{bucket}.s3.{region}.amazonaws.com/"
+            if s3_url.startswith(prefix_with_region):
+                s3_key = s3_url.replace(prefix_with_region, '')
+            
+            # Format 2: https://bucket.s3.amazonaws.com/key (without region)
+            prefix_no_region = f"https://{bucket}.s3.amazonaws.com/"
+            if not s3_key and s3_url.startswith(prefix_no_region):
+                s3_key = s3_url.replace(prefix_no_region, '')
+            
+            # Format 3: s3://bucket/key
+            s3_prefix = f"s3://{bucket}/"
+            if not s3_key and s3_url.startswith(s3_prefix):
+                s3_key = s3_url.replace(s3_prefix, '')
+            
+            # If we couldn't extract the key, return original URL
+            if not s3_key:
+                current_app.logger.warning(f"Could not extract S3 key from URL: {s3_url}")
+                return s3_url
             
             # Generate presigned URL
             client = self._get_client()
