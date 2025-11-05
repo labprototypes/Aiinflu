@@ -377,28 +377,41 @@ def generate_avatar_video(project_id):
 
 @bp.route('/projects/<project_id>/check-avatar-status/<request_id>', methods=['GET'])
 def check_avatar_status(project_id, request_id):
-    """Check status of avatar video generation"""
-    from flask import current_app
-    project = Project.query.get_or_404(project_id)
-    
+    """Check the status of avatar video generation"""
+    print(f"=== CHECK AVATAR STATUS CALLED ===")
+    print(f"Request ID: {request_id}")
     current_app.logger.info(f"=== CHECK AVATAR STATUS CALLED ===")
-    current_app.logger.info(f"Project ID: {project_id}, Request ID: {request_id}")
+    current_app.logger.info(f"Request ID: {request_id}")
     
     try:
         status = falai_helper.check_status(request_id)
-        
+        print(f"Status result: {status}")
         current_app.logger.info(f"Status result: {status}")
         
-        if status.get('status') == 'completed' and status.get('video_url'):
+        # If completed, save video URL
+        if status.get('status') == 'completed':
+            project = Project.query.get_or_404(project_id)
             project.avatar_video_url = status['video_url']
-            project.current_step = 5
+            
+            # Update status in avatar_generation_params
+            if project.avatar_generation_params:
+                params = project.avatar_generation_params.copy()
+                params['status'] = 'completed'
+                params['video_url'] = status['video_url']
+                project.avatar_generation_params = params
+            
+            project.current_step = 5  # Ready for final composition
             db.session.commit()
+            
+            print(f"Video completed! URL: {status['video_url']}")
             current_app.logger.info(f"Video completed! URL: {status['video_url']}")
         
         return jsonify(status)
+    
     except Exception as e:
-        current_app.logger.error(f"Error in check_avatar_status: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"!!! ERROR in check_avatar_status: {str(e)}")
+        current_app.logger.error(f"check_avatar_status error: {str(e)}")
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
 @bp.route('/projects/<project_id>/compose-final-video', methods=['POST'])

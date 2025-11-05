@@ -143,6 +143,7 @@ class FalAIHelper:
             Dict with status info and video_url if completed
         """
         try:
+            print(f">>> [check_status] Checking fal.ai status for request: {request_id}")
             current_app.logger.info(f"Checking fal.ai status for request: {request_id}")
             
             api_key = current_app.config.get('FAL_KEY')
@@ -161,15 +162,20 @@ class FalAIHelper:
             # Check status via Queue API
             status_url = f"https://queue.fal.run/fal-ai/infinitalk/requests/{request_id}/status"
             
+            print(f">>> [check_status] Requesting: {status_url}")
+            
             with httpx.Client(headers=headers, timeout=30.0) as client:
                 response = client.get(status_url)
                 response.raise_for_status()
                 status_data = response.json()
             
+            print(f">>> [check_status] Status data: {status_data}")
             current_app.logger.info(f"Status data: {status_data}")
             
             # Check status field
             status = status_data.get('status')
+            
+            print(f">>> [check_status] Status: {status}")
             
             if status == 'COMPLETED':
                 # Get result
@@ -182,25 +188,31 @@ class FalAIHelper:
                 video_url = result.get('video', {}).get('url')
                 
                 if video_url:
+                    print(f">>> [check_status] COMPLETED! Video URL: {video_url}")
                     current_app.logger.info(f"fal.ai generation completed: {video_url}")
                     return {
                         'status': 'completed',
                         'video_url': video_url
                     }
                 else:
+                    print(f">>> [check_status] ERROR: No video URL in result")
                     current_app.logger.error(f"No video URL in result: {result}")
                     return {'status': 'error', 'error': 'No video URL in response'}
             
             elif status in ['IN_QUEUE', 'IN_PROGRESS']:
+                print(f">>> [check_status] Still processing: {status}")
                 current_app.logger.info(f"Generation in progress: {status}")
                 return {'status': 'processing'}
             
             else:
                 # Unknown or error status
+                print(f">>> [check_status] Unknown status: {status}")
                 current_app.logger.error(f"Unknown status: {status}")
                 return {'status': 'error', 'error': f'Unknown status: {status}'}
                 
         except Exception as e:
+            print(f"!!! [check_status] ERROR: {str(e)}")
+            print(f"!!! [check_status] Error type: {type(e).__name__}")
             current_app.logger.error(f"fal.ai status check error: {str(e)}")
             current_app.logger.error(f"Error type: {type(e).__name__}")
             current_app.logger.error(f"Request ID: {request_id}")
