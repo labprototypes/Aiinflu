@@ -309,6 +309,13 @@ def generate_avatar_video(project_id):
     from flask import current_app
     project = Project.query.get_or_404(project_id)
     
+    print("=" * 80)
+    print("=== GENERATE AVATAR VIDEO CALLED ===")
+    print(f"Project ID: {project_id}")
+    print(f"Audio URL: {project.audio_url}")
+    print(f"Blogger Image URL: {project.blogger.frontal_image_url if project.blogger else 'NO BLOGGER'}")
+    print("=" * 80)
+    
     current_app.logger.info(f"=== GENERATE AVATAR VIDEO CALLED ===")
     current_app.logger.info(f"Project ID: {project_id}")
     current_app.logger.info(f"Audio URL: {project.audio_url}")
@@ -325,6 +332,7 @@ def generate_avatar_video(project_id):
         expression_scale = data.get('expression_scale', 1.0)
         face_enhance = data.get('face_enhance', True)
         
+        print(f">>> Calling falai_helper.start_avatar_generation...")
         current_app.logger.info(f"Calling falai_helper.start_avatar_generation...")
         
         # Start async generation (returns immediately with request_id)
@@ -335,6 +343,7 @@ def generate_avatar_video(project_id):
             face_enhance=face_enhance
         )
         
+        print(f">>> fal.ai returned: {result}")
         current_app.logger.info(f"fal.ai returned: {result}")
         
         # Save request_id for status polling
@@ -346,6 +355,7 @@ def generate_avatar_video(project_id):
         }
         db.session.commit()
         
+        print(f">>> Saved request_id to DB: {result['request_id']}")
         current_app.logger.info(f"Saved request_id to DB: {result['request_id']}")
         
         return jsonify({
@@ -355,9 +365,12 @@ def generate_avatar_video(project_id):
             'project': project.to_dict()
         })
     except Exception as e:
+        print(f"!!! ERROR in generate_avatar_video: {str(e)}")
+        print(f"!!! Error type: {type(e).__name__}")
         current_app.logger.error(f"Error in generate_avatar_video: {str(e)}")
         current_app.logger.error(f"Error type: {type(e).__name__}")
         import traceback
+        traceback.print_exc()
         current_app.logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 

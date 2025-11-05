@@ -33,6 +33,10 @@ class FalAIHelper:
             raise ValueError("FAL_KEY not configured")
         
         try:
+            print(">>> [falai_helper] Starting fal.ai InfiniTalk generation (async)...")
+            print(f">>> [falai_helper] Audio URL: {audio_url}")
+            print(f">>> [falai_helper] Image URL: {image_url}")
+            
             current_app.logger.info(f"Starting fal.ai InfiniTalk generation (async)...")
             current_app.logger.info(f"Audio URL: {audio_url}")
             current_app.logger.info(f"Image URL: {image_url}")
@@ -41,6 +45,7 @@ class FalAIHelper:
                 "audio_url": audio_url,
                 "image_url": image_url
             }
+            print(f">>> [falai_helper] fal.ai arguments: {arguments_dict}")
             current_app.logger.info(f"fal.ai arguments: {arguments_dict}")
             
             # Submit async request (returns immediately)
