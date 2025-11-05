@@ -140,12 +140,40 @@ class FalAIHelper:
         try:
             current_app.logger.info(f"Checking fal.ai status for request: {request_id}")
             
-            # Use fal_client.status() method directly - it handles everything internally
-            try:
-                # Try to get result - will raise if not ready
-                result = fal_client.result("fal-ai/infinitalk", request_id)
+            api_key = current_app.config.get('FAL_KEY')
+            if not api_key:
+                raise ValueError("FAL_KEY not configured")
+            
+            # Use httpx directly to check status via Queue API
+            import httpx
+            
+            # Create authenticated client
+            headers = {
+                'Authorization': f'Key {api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Check status via Queue API
+            status_url = f"https://queue.fal.run/fal-ai/infinitalk/requests/{request_id}/status"
+            
+            with httpx.Client(headers=headers, timeout=30.0) as client:
+                response = client.get(status_url)
+                response.raise_for_status()
+                status_data = response.json()
+            
+            current_app.logger.info(f"Status data: {status_data}")
+            
+            # Check status field
+            status = status_data.get('status')
+            
+            if status == 'COMPLETED':
+                # Get result
+                result_url = f"https://queue.fal.run/fal-ai/infinitalk/requests/{request_id}"
+                with httpx.Client(headers=headers, timeout=30.0) as client:
+                    result_response = client.get(result_url)
+                    result_response.raise_for_status()
+                    result = result_response.json()
                 
-                # If we get here, generation is complete
                 video_url = result.get('video', {}).get('url')
                 
                 if video_url:
@@ -157,15 +185,15 @@ class FalAIHelper:
                 else:
                     current_app.logger.error(f"No video URL in result: {result}")
                     return {'status': 'error', 'error': 'No video URL in response'}
-                    
-            except Exception as inner_e:
-                # If error contains "IN_PROGRESS" or similar, it means still processing
-                error_msg = str(inner_e).lower()
-                if 'in progress' in error_msg or 'in_progress' in error_msg or 'not completed' in error_msg:
-                    current_app.logger.info(f"Generation still in progress")
-                    return {'status': 'processing'}
-                # Otherwise it's a real error
-                raise
+            
+            elif status in ['IN_QUEUE', 'IN_PROGRESS']:
+                current_app.logger.info(f"Generation in progress: {status}")
+                return {'status': 'processing'}
+            
+            else:
+                # Unknown or error status
+                current_app.logger.error(f"Unknown status: {status}")
+                return {'status': 'error', 'error': f'Unknown status: {status}'}
                 
         except Exception as e:
             current_app.logger.error(f"fal.ai status check error: {str(e)}")
