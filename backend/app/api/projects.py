@@ -1,5 +1,5 @@
 """Project API endpoints."""
-from flask import request, jsonify
+from flask import request, jsonify, current_app
 from app import db
 from app.models import Project, Blogger
 from app.utils.gpt_helper import gpt_helper
