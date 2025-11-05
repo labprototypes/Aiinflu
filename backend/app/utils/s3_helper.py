@@ -140,6 +140,54 @@ class S3Helper:
             
         except Exception as e:
             current_app.logger.error(f"S3 delete failed: {str(e)}")
+    
+    def get_presigned_url(self, s3_url, expiration=3600):
+        """
+        Generate presigned URL for private S3 objects.
+        
+        Args:
+            s3_url: Full S3 URL (public or direct)
+            expiration: URL validity in seconds (default: 1 hour)
+            
+        Returns:
+            str: Presigned URL that works regardless of bucket ACL settings
+        """
+        if not s3_url:
+            return None
+        
+        try:
+            bucket = current_app.config['AWS_S3_BUCKET']
+            region = current_app.config['AWS_REGION']
+            
+            # Extract S3 key from URL
+            # Handle both formats: https://bucket.s3.region.amazonaws.com/key and presigned URLs
+            if '?' in s3_url:
+                # Already a presigned URL, return as-is
+                return s3_url
+            
+            prefix = f"https://{bucket}.s3.{region}.amazonaws.com/"
+            if not s3_url.startswith(prefix):
+                # Not our S3 URL, return as-is
+                return s3_url
+            
+            s3_key = s3_url.replace(prefix, '')
+            
+            # Generate presigned URL
+            client = self._get_client()
+            presigned_url = client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': bucket,
+                    'Key': s3_key
+                },
+                ExpiresIn=expiration
+            )
+            
+            return presigned_url
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to generate presigned URL: {str(e)}")
+            return s3_url  # Return original URL as fallback
 
 
 # Global instance
