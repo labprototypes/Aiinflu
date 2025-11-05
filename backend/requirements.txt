@@ -13,6 +13,9 @@ elevenlabs==0.2.27
 fal-client==0.4.1
 requests==2.31.0
 
+# Audio processing
+mutagen==1.47.0
+
 # Celery for async tasks (future)
 celery==5.3.4
 redis==5.0.1

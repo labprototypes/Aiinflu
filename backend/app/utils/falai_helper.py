@@ -12,6 +12,8 @@ class FalAIHelper:
     def start_avatar_generation(
         audio_url: str,
         image_url: str,
+        prompt: str = None,
+        audio_duration: float = None,
         expression_scale: float = 1.0,
         face_enhance: bool = True
     ) -> Dict:
@@ -22,6 +24,8 @@ class FalAIHelper:
         Args:
             audio_url: URL to audio file (must be publicly accessible)
             image_url: URL to avatar image (frontal photo)
+            prompt: Text prompt to guide video generation (REQUIRED by fal.ai)
+            audio_duration: Duration of audio in seconds (for calculating num_frames)
             expression_scale: Not used in InfiniTalk (kept for API compatibility)
             face_enhance: Not used in InfiniTalk (kept for API compatibility)
             
@@ -36,14 +40,33 @@ class FalAIHelper:
             print(">>> [falai_helper] Starting fal.ai InfiniTalk generation (async)...")
             print(f">>> [falai_helper] Audio URL: {audio_url}")
             print(f">>> [falai_helper] Image URL: {image_url}")
+            print(f">>> [falai_helper] Prompt: {prompt}")
+            print(f">>> [falai_helper] Audio duration: {audio_duration}s")
             
             current_app.logger.info(f"Starting fal.ai InfiniTalk generation (async)...")
             current_app.logger.info(f"Audio URL: {audio_url}")
             current_app.logger.info(f"Image URL: {image_url}")
             
+            # Generate default prompt if not provided
+            if not prompt:
+                prompt = "A professional influencer speaking directly to the camera with natural gestures and expressions, delivering engaging content with confidence and authenticity."
+            
+            # Calculate num_frames based on audio duration
+            # InfiniTalk uses 25 FPS, so frames = duration * 25
+            # Must be between 41 and 721
+            num_frames = 145  # Default
+            if audio_duration:
+                calculated_frames = int(audio_duration * 25)
+                num_frames = max(41, min(721, calculated_frames))
+                print(f">>> [falai_helper] Calculated num_frames: {num_frames} (from {audio_duration}s audio)")
+            
             arguments_dict = {
                 "audio_url": audio_url,
-                "image_url": image_url
+                "image_url": image_url,
+                "prompt": prompt,
+                "num_frames": num_frames,
+                "resolution": "720p",  # Always use 720p as requested
+                "acceleration": "regular"  # Standard quality
             }
             print(f">>> [falai_helper] fal.ai arguments: {arguments_dict}")
             current_app.logger.info(f"fal.ai arguments: {arguments_dict}")

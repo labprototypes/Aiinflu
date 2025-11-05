@@ -332,6 +332,49 @@ def generate_avatar_video(project_id):
         expression_scale = data.get('expression_scale', 1.0)
         face_enhance = data.get('face_enhance', True)
         
+        # Generate prompt using GPT based on video scenario
+        print(f">>> Generating video prompt from scenario...")
+        video_prompt = None
+        audio_duration = None
+        
+        if project.scenario:
+            try:
+                # Ask GPT to create a short prompt describing how the person should move and express
+                prompt_request = f"""Based on this video scenario:
+{project.scenario}
+
+Create a SHORT prompt (max 100 characters) describing how the person should look and move on camera. Focus on:
+- Camera position (e.g., "looking at camera", "slightly turned")
+- Expression/emotion (e.g., "enthusiastic", "serious", "friendly")
+- Natural movements (e.g., "natural gestures", "expressive hands")
+
+Example: "Professional influencer speaking to camera with enthusiasm and natural hand gestures"
+
+Prompt:"""
+                
+                video_prompt = gpt_helper.ask_gpt(prompt_request, max_tokens=50)
+                print(f">>> Generated prompt: {video_prompt}")
+            except Exception as e:
+                print(f">>> Warning: Could not generate prompt via GPT: {e}")
+                video_prompt = "A professional influencer speaking to camera with natural expressions and gestures"
+        
+        # Calculate audio duration from audio file (for num_frames calculation)
+        if project.audio_url:
+            try:
+                import requests
+                from mutagen.mp3 import MP3
+                from io import BytesIO
+                
+                print(f">>> Downloading audio to get duration...")
+                audio_response = requests.get(project.audio_url, timeout=10)
+                audio_bytes = BytesIO(audio_response.content)
+                audio = MP3(audio_bytes)
+                audio_duration = audio.info.length
+                print(f">>> Audio duration: {audio_duration:.2f}s")
+            except Exception as e:
+                print(f">>> Warning: Could not get audio duration: {e}")
+                audio_duration = None
+        
         print(f">>> Calling falai_helper.start_avatar_generation...")
         current_app.logger.info(f"Calling falai_helper.start_avatar_generation...")
         
@@ -339,6 +382,8 @@ def generate_avatar_video(project_id):
         result = falai_helper.start_avatar_generation(
             audio_url=project.audio_url,
             image_url=project.blogger.frontal_image_url,
+            prompt=video_prompt,
+            audio_duration=audio_duration,
             expression_scale=expression_scale,
             face_enhance=face_enhance
         )
