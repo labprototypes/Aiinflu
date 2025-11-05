@@ -306,7 +306,13 @@ def generate_timeline(project_id):
 @bp.route('/projects/<project_id>/generate-avatar-video', methods=['POST'])
 def generate_avatar_video(project_id):
     """Generate talking avatar video using fal.ai InfiniTalk (async)"""
+    from flask import current_app
     project = Project.query.get_or_404(project_id)
+    
+    current_app.logger.info(f"=== GENERATE AVATAR VIDEO CALLED ===")
+    current_app.logger.info(f"Project ID: {project_id}")
+    current_app.logger.info(f"Audio URL: {project.audio_url}")
+    current_app.logger.info(f"Blogger Image URL: {project.blogger.frontal_image_url if project.blogger else 'NO BLOGGER'}")
     
     if not project.audio_url:
         return jsonify({'error': 'Audio must be generated first'}), 400
@@ -319,6 +325,8 @@ def generate_avatar_video(project_id):
         expression_scale = data.get('expression_scale', 1.0)
         face_enhance = data.get('face_enhance', True)
         
+        current_app.logger.info(f"Calling falai_helper.start_avatar_generation...")
+        
         # Start async generation (returns immediately with request_id)
         result = falai_helper.start_avatar_generation(
             audio_url=project.audio_url,
@@ -326,6 +334,8 @@ def generate_avatar_video(project_id):
             expression_scale=expression_scale,
             face_enhance=face_enhance
         )
+        
+        current_app.logger.info(f"fal.ai returned: {result}")
         
         # Save request_id for status polling
         project.avatar_generation_params = {
@@ -336,6 +346,8 @@ def generate_avatar_video(project_id):
         }
         db.session.commit()
         
+        current_app.logger.info(f"Saved request_id to DB: {result['request_id']}")
+        
         return jsonify({
             'request_id': result['request_id'],
             'status': 'processing',
@@ -343,24 +355,36 @@ def generate_avatar_video(project_id):
             'project': project.to_dict()
         })
     except Exception as e:
+        current_app.logger.error(f"Error in generate_avatar_video: {str(e)}")
+        current_app.logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
 @bp.route('/projects/<project_id>/check-avatar-status/<request_id>', methods=['GET'])
 def check_avatar_status(project_id, request_id):
     """Check status of avatar video generation"""
+    from flask import current_app
     project = Project.query.get_or_404(project_id)
+    
+    current_app.logger.info(f"=== CHECK AVATAR STATUS CALLED ===")
+    current_app.logger.info(f"Project ID: {project_id}, Request ID: {request_id}")
     
     try:
         status = falai_helper.check_status(request_id)
+        
+        current_app.logger.info(f"Status result: {status}")
         
         if status.get('status') == 'completed' and status.get('video_url'):
             project.avatar_video_url = status['video_url']
             project.current_step = 5
             db.session.commit()
+            current_app.logger.info(f"Video completed! URL: {status['video_url']}")
         
         return jsonify(status)
     except Exception as e:
+        current_app.logger.error(f"Error in check_avatar_status: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
