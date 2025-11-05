@@ -33,13 +33,23 @@ class Blogger(db.Model):
     def to_dict(self):
         """Convert model to dictionary."""
         from app.utils.s3_helper import s3_helper
+        from urllib.parse import quote
+        from flask import current_app
+        
+        def get_proxy_url(s3_url):
+            """Convert S3 URL to backend proxy URL."""
+            if not s3_url:
+                return None
+            # Use backend proxy to serve images (works even with private S3)
+            backend_url = current_app.config.get('BACKEND_URL', 'https://aiinflu-backend.onrender.com')
+            return f"{backend_url}/api/media/proxy?url={quote(s3_url)}"
         
         return {
             'id': str(self.id),
             'name': self.name,
             'type': self.type,
-            'frontal_image_url': s3_helper.get_presigned_url(self.frontal_image_url) if self.frontal_image_url else None,
-            'location_image_url': s3_helper.get_presigned_url(self.location_image_url) if self.location_image_url else None,
+            'frontal_image_url': get_proxy_url(self.frontal_image_url),
+            'location_image_url': get_proxy_url(self.location_image_url),
             'tone_of_voice': self.tone_of_voice,
             'elevenlabs_voice_id': self.elevenlabs_voice_id,
             'is_active': self.is_active,
@@ -88,16 +98,26 @@ class Project(db.Model):
     def to_dict(self):
         """Convert model to dictionary."""
         from app.utils.s3_helper import s3_helper
+        from urllib.parse import quote
+        from flask import current_app
         
-        # Generate presigned URLs for materials if they contain S3 URLs
-        materials_with_presigned = self.materials
-        if materials_with_presigned and isinstance(materials_with_presigned, list):
-            materials_with_presigned = []
+        def get_proxy_url(s3_url):
+            """Convert S3 URL to backend proxy URL."""
+            if not s3_url:
+                return None
+            # Use backend proxy to serve images (works even with private S3)
+            backend_url = current_app.config.get('BACKEND_URL', 'https://aiinflu-backend.onrender.com')
+            return f"{backend_url}/api/media/proxy?url={quote(s3_url)}"
+        
+        # Generate proxy URLs for materials if they contain S3 URLs
+        materials_with_proxy = self.materials
+        if materials_with_proxy and isinstance(materials_with_proxy, list):
+            materials_with_proxy = []
             for material in self.materials:
                 material_copy = material.copy()
                 if 'url' in material_copy:
-                    material_copy['url'] = s3_helper.get_presigned_url(material_copy['url'])
-                materials_with_presigned.append(material_copy)
+                    material_copy['url'] = get_proxy_url(material_copy['url'])
+                materials_with_proxy.append(material_copy)
         
         return {
             'id': str(self.id),
@@ -107,13 +127,13 @@ class Project(db.Model):
             'current_step': self.current_step,
             'scenario_text': self.scenario_text,
             'voiceover_text': self.voiceover_text,
-            'audio_url': s3_helper.get_presigned_url(self.audio_url) if self.audio_url else None,
+            'audio_url': get_proxy_url(self.audio_url),
             'audio_alignment': self.audio_alignment,
-            'materials': materials_with_presigned,
+            'materials': materials_with_proxy,
             'timeline': self.timeline,
             'avatar_video_url': self.avatar_video_url,  # fal.ai URLs are already public
             'avatar_generation_params': self.avatar_generation_params,
-            'final_video_url': s3_helper.get_presigned_url(self.final_video_url) if self.final_video_url else None,
+            'final_video_url': get_proxy_url(self.final_video_url),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
