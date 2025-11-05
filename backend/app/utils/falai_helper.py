@@ -142,13 +142,33 @@ class FalAIHelper:
         try:
             current_app.logger.info(f"Checking fal.ai status for request: {request_id}")
             
-            # Use SyncClient to get status by request_id
-            from fal_client import sync_client
+            # Reconstruct handler from request_id using fal_client internals
+            # We need to construct the URLs manually based on fal.ai API structure
+            import httpx
+            from fal_client import SyncRequestHandle, sync_client
             
-            try:
-                # Get result with short timeout (non-blocking check)
-                result = sync_client.result("fal-ai/infinitalk", request_id)
-                
+            # Construct status/result URLs for fal.ai queue API
+            base_url = "https://queue.fal.run"
+            status_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}/status"
+            response_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}"
+            cancel_url = f"{base_url}/fal-ai/infinitalk/requests/{request_id}/cancel"
+            
+            # Create handler with reconstructed URLs
+            handler = SyncRequestHandle(
+                request_id=request_id,
+                response_url=response_url,
+                status_url=status_url,
+                cancel_url=cancel_url,
+                client=httpx.Client()
+            )
+            
+            # Check status
+            status_response = handler.status()
+            current_app.logger.info(f"Status response: {status_response}")
+            
+            # If completed, get result
+            if isinstance(status_response, fal_client.Completed):
+                result = handler.get()
                 video_url = result.get('video', {}).get('url')
                 
                 if video_url:
@@ -157,21 +177,15 @@ class FalAIHelper:
                         'status': 'completed',
                         'video_url': video_url
                     }
-                else:
-                    return {'status': 'processing'}
-                    
-            except TimeoutError:
-                # Still processing
-                return {'status': 'processing'}
-            except Exception as e:
-                # Check if it's a "not ready" error
-                if 'not ready' in str(e).lower() or 'in progress' in str(e).lower():
-                    return {'status': 'processing'}
-                else:
-                    raise
+            
+            # Still processing
+            return {'status': 'processing'}
                 
         except Exception as e:
             current_app.logger.error(f"fal.ai status check error: {str(e)}")
+            # If error might be "not ready yet", return processing
+            if 'not found' not in str(e).lower():
+                return {'status': 'processing'}
             return {
                 'status': 'error',
                 'error': str(e)
