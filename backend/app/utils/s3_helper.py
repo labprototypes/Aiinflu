@@ -67,25 +67,46 @@ class S3Helper:
         client = self._get_client()
         
         try:
-            # Upload without ACL (modern S3 buckets don't support ACLs by default)
-            client.upload_fileobj(
-                file,
-                bucket,
-                s3_key,
-                ExtraArgs={
-                    'ContentType': content_type
-                }
-            )
+            # Upload with public-read ACL for fal.ai access
+            # Note: Bucket must have ACLs enabled in S3 settings
+            try:
+                client.upload_fileobj(
+                    file,
+                    bucket,
+                    s3_key,
+                    ExtraArgs={
+                        'ContentType': content_type,
+                        'ACL': 'public-read'  # Make publicly accessible
+                    }
+                )
+                
+                # Return direct public URL (no expiration)
+                region = current_app.config.get('AWS_REGION', 'us-east-1')
+                url = f"https://{bucket}.s3.{region}.amazonaws.com/{s3_key}"
+                
+            except Exception as acl_error:
+                # Fallback: upload without ACL if ACLs are disabled
+                current_app.logger.warning(f"ACL upload failed, using presigned URL: {acl_error}")
+                
+                client.upload_fileobj(
+                    file,
+                    bucket,
+                    s3_key,
+                    ExtraArgs={
+                        'ContentType': content_type
+                    }
+                )
+                
+                # Generate pre-signed URL (valid for 7 days)
+                url = client.generate_presigned_url(
+                    'get_object',
+                    Params={
+                        'Bucket': bucket,
+                        'Key': s3_key
+                    },
+                    ExpiresIn=604800  # 7 days in seconds
+                )
             
-            # Generate pre-signed URL (valid for 7 days)
-            url = client.generate_presigned_url(
-                'get_object',
-                Params={
-                    'Bucket': bucket,
-                    'Key': s3_key
-                },
-                ExpiresIn=604800  # 7 days in seconds
-            )
             return url
             
         except Exception as e:
