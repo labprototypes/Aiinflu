@@ -142,13 +142,13 @@ class FalAIHelper:
         try:
             current_app.logger.info(f"Checking fal.ai status for request: {request_id}")
             
-            # Get handler for this request_id
-            handler = fal_client.submit("fal-ai/infinitalk", arguments={})
-            handler.request_id = request_id
+            # Use SyncClient to get status by request_id
+            from fal_client import sync_client
             
-            # Try to get result (non-blocking check)
             try:
-                result = handler.get(timeout=1)  # 1 second timeout for quick check
+                # Get result with short timeout (non-blocking check)
+                result = sync_client.result("fal-ai/infinitalk", request_id)
+                
                 video_url = result.get('video', {}).get('url')
                 
                 if video_url:
@@ -163,6 +163,12 @@ class FalAIHelper:
             except TimeoutError:
                 # Still processing
                 return {'status': 'processing'}
+            except Exception as e:
+                # Check if it's a "not ready" error
+                if 'not ready' in str(e).lower() or 'in progress' in str(e).lower():
+                    return {'status': 'processing'}
+                else:
+                    raise
                 
         except Exception as e:
             current_app.logger.error(f"fal.ai status check error: {str(e)}")
