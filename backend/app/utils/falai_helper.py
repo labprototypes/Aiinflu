@@ -178,14 +178,33 @@ class FalAIHelper:
             print(f">>> [check_status] Status: {status}")
             
             if status == 'COMPLETED':
-                # Get result
-                result_url = f"https://queue.fal.run/fal-ai/infinitalk/requests/{request_id}"
+                # Get result - use response_url from status data
+                result_url = status_data.get('response_url') or f"https://queue.fal.run/fal-ai/infinitalk/requests/{request_id}"
+                
+                print(f">>> [check_status] Getting result from: {result_url}")
+                
                 with httpx.Client(headers=headers, timeout=30.0) as client:
                     result_response = client.get(result_url)
+                    print(f">>> [check_status] Result response status: {result_response.status_code}")
                     result_response.raise_for_status()
                     result = result_response.json()
                 
-                video_url = result.get('video', {}).get('url')
+                print(f">>> [check_status] Full result: {result}")
+                
+                # Try different possible paths for video URL
+                video_url = None
+                if isinstance(result, dict):
+                    # Try video.url
+                    if 'video' in result and isinstance(result['video'], dict):
+                        video_url = result['video'].get('url')
+                    # Try direct video_url
+                    elif 'video_url' in result:
+                        video_url = result['video_url']
+                    # Try data.video_url
+                    elif 'data' in result and isinstance(result['data'], dict):
+                        video_url = result['data'].get('video_url') or result['data'].get('video', {}).get('url')
+                
+                print(f">>> [check_status] Extracted video_url: {video_url}")
                 
                 if video_url:
                     print(f">>> [check_status] COMPLETED! Video URL: {video_url}")
