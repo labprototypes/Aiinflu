@@ -201,21 +201,11 @@ class FalAIHelper:
             print(f">>> [check_status] Status: {status}")
             
             if status == 'COMPLETED':
-                # Use SDK to get result - avoids 422 error with direct HTTP
-                print(f">>> [check_status] Creating handler for completed request...")
+                # Use fal_client.result() to get the completed result
+                print(f">>> [check_status] Getting result via fal_client.result()...")
                 
                 try:
-                    # Reconstruct handler from request_id
-                    from fal_client.sync import SyncRequestHandle
-                    
-                    # Create handler with request_id
-                    handler = SyncRequestHandle(
-                        request_id=request_id,
-                        endpoint_id="fal-ai/infinitalk"
-                    )
-                    
-                    print(f">>> [check_status] Getting result via SDK handler.get()...")
-                    result = handler.get()
+                    result = fal_client.result("fal-ai/infinitalk", request_id)
                     
                     print(f">>> [check_status] Full result: {result}")
                     
