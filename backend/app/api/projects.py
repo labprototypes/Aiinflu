@@ -337,11 +337,11 @@ def generate_avatar_video(project_id):
         video_prompt = None
         audio_duration = None
         
-        if project.scenario:
+        if project.scenario_text:
             try:
                 # Ask GPT to create a short prompt describing how the person should move and express
                 prompt_request = f"""Based on this video scenario:
-{project.scenario}
+{project.scenario_text}
 
 Create a SHORT prompt (max 100 characters) describing how the person should look and move on camera. Focus on:
 - Camera position (e.g., "looking at camera", "slightly turned")
@@ -357,6 +357,8 @@ Prompt:"""
             except Exception as e:
                 print(f">>> Warning: Could not generate prompt via GPT: {e}")
                 video_prompt = "A professional influencer speaking to camera with natural expressions and gestures"
+        else:
+            video_prompt = "A professional influencer speaking to camera with natural expressions and gestures"
         
         # Calculate audio duration from audio file (for num_frames calculation)
         if project.audio_url:
