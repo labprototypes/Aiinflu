@@ -15,6 +15,18 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///aiinflu.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # SQLAlchemy connection pool settings (fix SSL errors)
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,  # Test connection before using
+        'pool_recycle': 300,    # Recycle connections after 5 minutes
+        'pool_size': 10,        # Max connections in pool
+        'max_overflow': 20,     # Max overflow connections
+        'connect_args': {
+            'connect_timeout': 10,  # Connection timeout
+            'options': '-c statement_timeout=30000'  # 30s query timeout
+        }
+    }
+    
     # AWS S3
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
