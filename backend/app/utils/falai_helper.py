@@ -178,45 +178,56 @@ class FalAIHelper:
             print(f">>> [check_status] Status: {status}")
             
             if status == 'COMPLETED':
-                # Get result - use response_url from status data
-                result_url = status_data.get('response_url') or f"https://queue.fal.run/fal-ai/infinitalk/requests/{request_id}"
+                # Use SDK to get result - avoids 422 error with direct HTTP
+                print(f">>> [check_status] Creating handler for completed request...")
                 
-                print(f">>> [check_status] Getting result from: {result_url}")
-                
-                with httpx.Client(headers=headers, timeout=30.0) as client:
-                    result_response = client.get(result_url)
-                    print(f">>> [check_status] Result response status: {result_response.status_code}")
-                    result_response.raise_for_status()
-                    result = result_response.json()
-                
-                print(f">>> [check_status] Full result: {result}")
-                
-                # Try different possible paths for video URL
-                video_url = None
-                if isinstance(result, dict):
-                    # Try video.url
-                    if 'video' in result and isinstance(result['video'], dict):
-                        video_url = result['video'].get('url')
-                    # Try direct video_url
-                    elif 'video_url' in result:
-                        video_url = result['video_url']
-                    # Try data.video_url
-                    elif 'data' in result and isinstance(result['data'], dict):
-                        video_url = result['data'].get('video_url') or result['data'].get('video', {}).get('url')
-                
-                print(f">>> [check_status] Extracted video_url: {video_url}")
-                
-                if video_url:
-                    print(f">>> [check_status] COMPLETED! Video URL: {video_url}")
-                    current_app.logger.info(f"fal.ai generation completed: {video_url}")
-                    return {
-                        'status': 'completed',
-                        'video_url': video_url
-                    }
-                else:
-                    print(f">>> [check_status] ERROR: No video URL in result")
-                    current_app.logger.error(f"No video URL in result: {result}")
-                    return {'status': 'error', 'error': 'No video URL in response'}
+                try:
+                    # Reconstruct handler from request_id
+                    from fal_client.sync import SyncRequestHandle
+                    
+                    # Create handler with request_id
+                    handler = SyncRequestHandle(
+                        request_id=request_id,
+                        endpoint_id="fal-ai/infinitalk"
+                    )
+                    
+                    print(f">>> [check_status] Getting result via SDK handler.get()...")
+                    result = handler.get()
+                    
+                    print(f">>> [check_status] Full result: {result}")
+                    
+                    # Try different possible paths for video URL
+                    video_url = None
+                    if isinstance(result, dict):
+                        # Try video.url
+                        if 'video' in result and isinstance(result['video'], dict):
+                            video_url = result['video'].get('url')
+                        # Try direct video_url
+                        elif 'video_url' in result:
+                            video_url = result['video_url']
+                        # Try data.video_url
+                        elif 'data' in result and isinstance(result['data'], dict):
+                            video_url = result['data'].get('video_url') or result['data'].get('video', {}).get('url')
+                    
+                    print(f">>> [check_status] Extracted video_url: {video_url}")
+                    
+                    if video_url:
+                        print(f">>> [check_status] COMPLETED! Video URL: {video_url}")
+                        current_app.logger.info(f"fal.ai generation completed: {video_url}")
+                        return {
+                            'status': 'completed',
+                            'video_url': video_url
+                        }
+                    else:
+                        print(f">>> [check_status] ERROR: No video URL in result")
+                        current_app.logger.error(f"No video URL in result: {result}")
+                        return {'status': 'error', 'error': 'No video URL in response'}
+                        
+                except Exception as result_error:
+                    print(f"!!! [check_status] ERROR getting result: {str(result_error)}")
+                    print(f"!!! [check_status] Error type: {type(result_error).__name__}")
+                    current_app.logger.error(f"Error getting result: {str(result_error)}")
+                    return {'status': 'error', 'error': f'Failed to get result: {str(result_error)}'}
             
             elif status in ['IN_QUEUE', 'IN_PROGRESS']:
                 print(f">>> [check_status] Still processing: {status}")
