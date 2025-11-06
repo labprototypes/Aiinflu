@@ -366,9 +366,12 @@ Prompt:"""
                 import requests
                 from mutagen.mp3 import MP3
                 from io import BytesIO
+                from app.utils.s3_helper import s3_helper
                 
                 print(f">>> Downloading audio to get duration...")
-                audio_response = requests.get(project.audio_url, timeout=10)
+                # Generate fresh presigned URL for audio download
+                fresh_audio_url_for_download = s3_helper.get_presigned_url(project.audio_url, expiration=300)
+                audio_response = requests.get(fresh_audio_url_for_download, timeout=10)
                 audio_bytes = BytesIO(audio_response.content)
                 audio = MP3(audio_bytes)
                 audio_duration = audio.info.length
@@ -380,10 +383,18 @@ Prompt:"""
         print(f">>> Calling falai_helper.start_avatar_generation...")
         current_app.logger.info(f"Calling falai_helper.start_avatar_generation...")
         
+        # Generate fresh presigned URLs for fal.ai (old ones may have expired)
+        from app.utils.s3_helper import s3_helper
+        fresh_audio_url = s3_helper.get_presigned_url(project.audio_url, expiration=3600)
+        fresh_image_url = s3_helper.get_presigned_url(project.blogger.frontal_image_url, expiration=3600)
+        
+        print(f">>> Fresh audio URL: {fresh_audio_url[:100]}...")
+        print(f">>> Fresh image URL: {fresh_image_url[:100]}...")
+        
         # Start async generation (returns immediately with request_id)
         result = falai_helper.start_avatar_generation(
-            audio_url=project.audio_url,
-            image_url=project.blogger.frontal_image_url,
+            audio_url=fresh_audio_url,
+            image_url=fresh_image_url,
             prompt=video_prompt,
             audio_duration=audio_duration,
             expression_scale=expression_scale,
