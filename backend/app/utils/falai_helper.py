@@ -36,7 +36,7 @@ class FalAIHelper:
         if not api_key:
             raise ValueError("FAL_KEY not configured")
         
-        try:
+    try:
             print(">>> [falai_helper] Starting fal.ai InfiniTalk generation (async)...")
             print(f">>> [falai_helper] Audio URL: {audio_url}")
             print(f">>> [falai_helper] Image URL: {image_url}")
@@ -72,25 +72,52 @@ class FalAIHelper:
             current_app.logger.info(f"fal.ai arguments: {arguments_dict}")
             
             # Submit async request (returns immediately)
-            handler = fal_client.submit(
-                "fal-ai/infinitalk",
-                arguments=arguments_dict
-            )
+            try:
+                handler = fal_client.submit(
+                    "fal-ai/infinitalk",
+                    arguments=arguments_dict
+                )
+            except Exception as submit_err:
+                # Try to extract useful info from httpx/HTTPStatusError-like exceptions
+                try:
+                    import httpx
+                    if isinstance(submit_err, httpx.HTTPStatusError):
+                        resp = submit_err.response
+                        try:
+                            body = resp.json()
+                        except Exception:
+                            body = resp.text
+                        current_app.logger.error(f"fal.ai submit HTTP error: {resp.status_code} {body}")
+                        raise RuntimeError(f"fal.ai submit failed: {resp.status_code} {body}")
+                except Exception:
+                    # Fallback generic handling
+                    current_app.logger.error(f"fal.ai submit error: {str(submit_err)}")
+                    raise
             
             request_id = handler.request_id
             current_app.logger.info(f"fal.ai request submitted: {request_id}")
-            
+
             return {
                 'request_id': request_id,
                 'status': 'processing'
             }
             
         except Exception as e:
+            # Ensure we log useful details for debugging
             current_app.logger.error(f"fal.ai generation error: {str(e)}")
             current_app.logger.error(f"Error type: {type(e).__name__}")
-            if hasattr(e, 'response'):
-                current_app.logger.error(f"Response body: {getattr(e.response, 'text', 'N/A')}")
-            raise
+            try:
+                import httpx
+                if isinstance(e, httpx.HTTPStatusError) and hasattr(e, 'response'):
+                    resp = e.response
+                    try:
+                        current_app.logger.error(f"Response body: {resp.json()}")
+                    except Exception:
+                        current_app.logger.error(f"Response body: {getattr(resp, 'text', 'N/A')}")
+            except Exception:
+                pass
+            # Re-raise a runtime error with the message so caller can return a helpful API error
+            raise RuntimeError(str(e))
     
     @staticmethod
     def generate_avatar_video(

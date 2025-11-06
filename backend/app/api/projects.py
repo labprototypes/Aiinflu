@@ -392,14 +392,19 @@ Prompt:"""
         print(f">>> Fresh image URL: {fresh_image_url[:100]}...")
         
         # Start async generation (returns immediately with request_id)
-        result = falai_helper.start_avatar_generation(
-            audio_url=fresh_audio_url,
-            image_url=fresh_image_url,
-            prompt=video_prompt,
-            audio_duration=audio_duration,
-            expression_scale=expression_scale,
-            face_enhance=face_enhance
-        )
+        try:
+            result = falai_helper.start_avatar_generation(
+                audio_url=fresh_audio_url,
+                image_url=fresh_image_url,
+                prompt=video_prompt,
+                audio_duration=audio_duration,
+                expression_scale=expression_scale,
+                face_enhance=face_enhance
+            )
+        except RuntimeError as re:
+            # fal.ai responded with an error - log and return readable message
+            current_app.logger.error(f"Error in fal.ai start_avatar_generation: {str(re)}")
+            return jsonify({'error': 'fal.ai error', 'detail': str(re)}), 502
         
         print(f">>> fal.ai returned: {result}")
         current_app.logger.info(f"fal.ai returned: {result}")
