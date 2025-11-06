@@ -70,12 +70,11 @@ class S3Helper:
             # Read file into memory first (to allow retry if ACL fails)
             from io import BytesIO
             file_content = file.read()
-            file_obj = BytesIO(file_content)
             
             # Upload with public-read ACL for fal.ai access
             # Note: Bucket must have ACLs enabled in S3 settings
             try:
-                file_obj.seek(0)  # Reset position
+                file_obj = BytesIO(file_content)
                 client.upload_fileobj(
                     file_obj,
                     bucket,
@@ -94,9 +93,10 @@ class S3Helper:
                 # Fallback: upload without ACL if ACLs are disabled
                 current_app.logger.warning(f"ACL upload failed, uploading without ACL: {acl_error}")
                 
-                file_obj.seek(0)  # Reset position for retry
+                # Create NEW BytesIO object for retry (old one is corrupted by boto3)
+                file_obj_retry = BytesIO(file_content)
                 client.upload_fileobj(
-                    file_obj,
+                    file_obj_retry,
                     bucket,
                     s3_key,
                     ExtraArgs={
