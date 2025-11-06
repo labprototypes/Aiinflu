@@ -168,27 +168,30 @@ class S3Helper:
             
             # Extract S3 key from URL
             # Handle both formats: https://bucket.s3.region.amazonaws.com/key and presigned URLs
-            if '?' in s3_url and 'X-Amz-' in s3_url:
-                # Already a presigned URL, return as-is
-                return s3_url
-            
-            # Try multiple URL formats
             s3_key = None
             
+            # If it's a presigned URL, extract the key from the base URL (before the ?)
+            if '?' in s3_url and 'X-Amz-' in s3_url:
+                # Strip query parameters to get base URL
+                s3_url_base = s3_url.split('?')[0]
+            else:
+                s3_url_base = s3_url
+            
+            # Try multiple URL formats
             # Format 1: https://bucket.s3.region.amazonaws.com/key
             prefix_with_region = f"https://{bucket}.s3.{region}.amazonaws.com/"
-            if s3_url.startswith(prefix_with_region):
-                s3_key = s3_url.replace(prefix_with_region, '')
+            if s3_url_base.startswith(prefix_with_region):
+                s3_key = s3_url_base.replace(prefix_with_region, '')
             
             # Format 2: https://bucket.s3.amazonaws.com/key (without region)
             prefix_no_region = f"https://{bucket}.s3.amazonaws.com/"
-            if not s3_key and s3_url.startswith(prefix_no_region):
-                s3_key = s3_url.replace(prefix_no_region, '')
+            if not s3_key and s3_url_base.startswith(prefix_no_region):
+                s3_key = s3_url_base.replace(prefix_no_region, '')
             
             # Format 3: s3://bucket/key
             s3_prefix = f"s3://{bucket}/"
-            if not s3_key and s3_url.startswith(s3_prefix):
-                s3_key = s3_url.replace(s3_prefix, '')
+            if not s3_key and s3_url_base.startswith(s3_prefix):
+                s3_key = s3_url_base.replace(s3_prefix, '')
             
             # If we couldn't extract the key, return original URL
             if not s3_key:
