@@ -483,7 +483,7 @@ def compose_final_video(project_id):
     current_app.logger.info(f"=== Starting compose_final_video for project {project_id} ===")
     
     project = Project.query.get_or_404(project_id)
-    current_app.logger.info(f"Project loaded: {project.name}")
+    current_app.logger.info(f"Project loaded, status: {project.status}, step: {project.current_step}")
     
     if not project.avatar_video_url:
         return jsonify({'error': 'Avatar video must be generated first'}), 400
