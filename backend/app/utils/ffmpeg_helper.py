@@ -164,17 +164,19 @@ class FFmpegHelper:
                     # Last poster: show until its original end time
                     end_time = segment.get('end_time', start_time + 5)
                 
-                # Scale material to fit video dimensions (832x1088) while preserving aspect ratio
+                # Scale material to fit in lower 2/3 of video (with side margins)
+                # Video is 832x1088, lower 2/3 height = ~725px, width with margins = ~665px (80%)
                 # force_original_aspect_ratio=decrease ensures image fits within bounds
-                # pad adds black bars to center the image
                 filters.append(
-                    f"[{mat_input}:v]scale=832:1088:force_original_aspect_ratio=decrease,pad=832:1088:(ow-iw)/2:(oh-ih)/2:black[mat{overlay_count}];"
+                    f"[{mat_input}:v]scale=665:725:force_original_aspect_ratio=decrease[mat{overlay_count}];"
                 )
                 
-                # Overlay centered on video with timing control
+                # Overlay in lower 2/3, centered horizontally
+                # Y position: (H/3) centers it in the lower 2/3 portion
+                # X position: (W-w)/2 centers it horizontally
                 next_video = f"[v{overlay_count}]"
                 filters.append(
-                    f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:(H-h)/2:enable='between(t,{start_time},{end_time})'{next_video};"
+                    f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:H/3:enable='between(t,{start_time},{end_time})'{next_video};"
                 )
                 
                 prev_video = next_video

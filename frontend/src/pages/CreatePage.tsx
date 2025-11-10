@@ -776,11 +776,14 @@ export default function CreatePage() {
               </div>
             ) : (
               <div>
-                <video
-                  src={currentProject.avatar_video_url}
-                  controls
-                  className="w-full rounded-lg mb-4"
-                />
+                <div className="flex justify-center mb-4">
+                  <video
+                    src={currentProject.avatar_video_url}
+                    controls
+                    className="max-w-md rounded-lg"
+                    style={{ maxHeight: '500px' }}
+                  />
+                </div>
                 <div className="flex gap-3">
                   <button
                     onClick={handleGenerateAvatar}
@@ -850,11 +853,14 @@ export default function CreatePage() {
                     <p className="text-white/60">Проект успешно завершён</p>
                   </div>
 
-                  <video
-                    src={currentProject.final_video_url}
-                    controls
-                    className="w-full rounded-lg mb-4"
-                  />
+                  <div className="flex justify-center mb-4">
+                    <video
+                      src={currentProject.final_video_url}
+                      controls
+                      className="max-w-md rounded-lg"
+                      style={{ maxHeight: '500px' }}
+                    />
+                  </div>
 
                   <div className="mb-4">
                     <label className="flex items-center gap-2">
