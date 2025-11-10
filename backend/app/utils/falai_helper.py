@@ -228,11 +228,15 @@ class FalAIHelper:
             print(f">>> [check_status] Status: {status}")
             
             if status == 'COMPLETED':
-                # Use fal_client.result() to get the completed result
-                print(f">>> [check_status] Getting result via fal_client.result()...")
+                # Get result from response_url
+                response_url = status_data.get('response_url')
+                print(f">>> [check_status] Getting result from: {response_url}")
                 
                 try:
-                    result = fal_client.result("fal-ai/infinitalk", request_id)
+                    with httpx.Client(headers=headers, timeout=30.0) as client:
+                        result_response = client.get(response_url)
+                        result_response.raise_for_status()
+                        result = result_response.json()
                     
                     print(f">>> [check_status] Full result: {result}")
                     
