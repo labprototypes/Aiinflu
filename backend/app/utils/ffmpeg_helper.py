@@ -140,33 +140,45 @@ class FFmpegHelper:
                         input_index += 1
             
             # Build filter chain
+            # First, collect all segments with materials
+            segments_with_materials = []
+            for segment in timeline:
+                mat_id = segment.get('material_id')
+                if mat_id and mat_id != 'MISSING' and mat_id in mat_id_to_input:
+                    segments_with_materials.append(segment)
+            
             overlay_count = 0
             prev_video = '[0:v]'
             
-            for i, segment in enumerate(timeline):
+            for i, segment in enumerate(segments_with_materials):
                 mat_id = segment.get('material_id')
-                if mat_id and mat_id != 'MISSING' and mat_id in mat_id_to_input:
-                    mat_input = mat_id_to_input[mat_id]
-                    
-                    start_time = segment.get('start_time', 0)
+                mat_input = mat_id_to_input[mat_id]
+                
+                start_time = segment.get('start_time', 0)
+                
+                # End time: show until next segment starts, or until segment's original end_time
+                if i < len(segments_with_materials) - 1:
+                    # Show until next poster appears
+                    end_time = segments_with_materials[i + 1].get('start_time', start_time + 5)
+                else:
+                    # Last poster: show until its original end time
                     end_time = segment.get('end_time', start_time + 5)
-                    duration = end_time - start_time
-                    
-                    # Scale material to fit video dimensions (832x1088) while preserving aspect ratio
-                    # force_original_aspect_ratio=decrease ensures image fits within bounds
-                    # pad adds black bars to center the image
-                    filters.append(
-                        f"[{mat_input}:v]scale=832:1088:force_original_aspect_ratio=decrease,pad=832:1088:(ow-iw)/2:(oh-ih)/2:black[mat{overlay_count}];"
-                    )
-                    
-                    # Overlay centered on video with timing control
-                    next_video = f"[v{overlay_count}]"
-                    filters.append(
-                        f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:(H-h)/2:enable='between(t,{start_time},{end_time})'{next_video};"
-                    )
-                    
-                    prev_video = next_video
-                    overlay_count += 1
+                
+                # Scale material to fit video dimensions (832x1088) while preserving aspect ratio
+                # force_original_aspect_ratio=decrease ensures image fits within bounds
+                # pad adds black bars to center the image
+                filters.append(
+                    f"[{mat_input}:v]scale=832:1088:force_original_aspect_ratio=decrease,pad=832:1088:(ow-iw)/2:(oh-ih)/2:black[mat{overlay_count}];"
+                )
+                
+                # Overlay centered on video with timing control
+                next_video = f"[v{overlay_count}]"
+                filters.append(
+                    f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:(H-h)/2:enable='between(t,{start_time},{end_time})'{next_video};"
+                )
+                
+                prev_video = next_video
+                overlay_count += 1
             
             output_path = os.path.join(temp_dir, output_filename)
             
