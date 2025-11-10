@@ -152,7 +152,7 @@ class FFmpegHelper:
                 filter_complex = ''.join(filters)
                 last_video = f"[v{len(timeline)-1}]"
                 
-                cmd = inputs + [
+                cmd = ['ffmpeg'] + inputs + [
                     '-filter_complex', filter_complex,
                     '-map', last_video,
                     '-map', '1:a:0',
