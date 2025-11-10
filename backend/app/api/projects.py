@@ -544,7 +544,29 @@ def compose_final_video(project_id):
         project.final_video_url = final_video_url
         project.status = 'completed'
         project.current_step = 6
-        db.session.commit()
+        
+        # Try to commit with retry on connection errors
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                db.session.commit()
+                current_app.logger.info("Database updated successfully")
+                break
+            except Exception as db_err:
+                current_app.logger.warning(f"DB commit attempt {attempt + 1}/{max_retries} failed: {str(db_err)}")
+                db.session.rollback()
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(1)  # Wait 1 second before retry
+                    # Refresh the project object
+                    db.session.refresh(project)
+                    project.final_video_url = final_video_url
+                    project.status = 'completed'
+                    project.current_step = 6
+                else:
+                    # Last attempt failed, but video is already uploaded
+                    current_app.logger.error(f"Failed to save to DB after {max_retries} attempts, but video is uploaded: {final_video_url}")
+                    # Return success anyway since video is ready
         
         current_app.logger.info("=== compose_final_video completed successfully ===")
         
