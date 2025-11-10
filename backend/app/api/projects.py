@@ -480,7 +480,10 @@ def check_avatar_status(project_id, request_id):
 @bp.route('/projects/<project_id>/compose-final-video', methods=['POST'])
 def compose_final_video(project_id):
     """Compose final video with FFmpeg"""
+    current_app.logger.info(f"=== Starting compose_final_video for project {project_id} ===")
+    
     project = Project.query.get_or_404(project_id)
+    current_app.logger.info(f"Project loaded: {project.name}")
     
     if not project.avatar_video_url:
         return jsonify({'error': 'Avatar video must be generated first'}), 400
@@ -493,10 +496,15 @@ def compose_final_video(project_id):
         add_subtitles = data.get('add_subtitles', False)
         advanced_composition = data.get('advanced_composition', False)
         
+        current_app.logger.info(f"Options: add_subtitles={add_subtitles}, advanced_composition={advanced_composition}")
+        current_app.logger.info(f"Timeline segments: {len(project.timeline) if project.timeline else 0}")
+        current_app.logger.info(f"Materials count: {len(project.materials) if project.materials else 0}")
+        
         output_filename = f"final_{project_id}.mp4"
         
         # Create composition
         if advanced_composition and project.timeline:
+            current_app.logger.info("Using advanced composition with timeline")
             video_path = ffmpeg_helper.create_advanced_composition(
                 avatar_video_url=project.avatar_video_url,
                 audio_url=project.audio_url,
@@ -505,6 +513,7 @@ def compose_final_video(project_id):
                 output_filename=output_filename
             )
         else:
+            current_app.logger.info("Using simple composition (no timeline overlays)")
             video_path = ffmpeg_helper.create_video_composition(
                 avatar_video_url=project.avatar_video_url,
                 audio_url=project.audio_url,
@@ -513,8 +522,11 @@ def compose_final_video(project_id):
                 output_filename=output_filename
             )
         
+        current_app.logger.info(f"Video composition completed: {video_path}")
+        
         # Add subtitles if requested
         if add_subtitles and project.voiceover_text and project.audio_alignment:
+            current_app.logger.info("Adding subtitles to video")
             video_path = ffmpeg_helper.add_subtitles(
                 video_path=video_path,
                 voiceover_text=project.voiceover_text,
@@ -523,19 +535,26 @@ def compose_final_video(project_id):
             )
         
         # Upload to S3
+        current_app.logger.info("Uploading final video to S3")
         with open(video_path, 'rb') as f:
             final_video_url = s3_helper.upload_file(f, 'final_videos')
+        
+        current_app.logger.info(f"Final video uploaded: {final_video_url}")
         
         project.final_video_url = final_video_url
         project.status = 'completed'
         project.current_step = 6
         db.session.commit()
         
+        current_app.logger.info("=== compose_final_video completed successfully ===")
+        
         return jsonify({
             'final_video_url': final_video_url,
             'project': project.to_dict()
         })
     except Exception as e:
+        current_app.logger.error(f"=== compose_final_video ERROR: {str(e)} ===")
+        current_app.logger.exception("Full traceback:")
         return jsonify({'error': str(e)}), 500
 
 
