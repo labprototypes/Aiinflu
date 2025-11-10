@@ -747,13 +747,26 @@ export default function CreatePage() {
                   controls
                   className="w-full rounded-lg mb-4"
                 />
-                <button
-                  onClick={handleGenerateAvatar}
-                  disabled={generateAvatarMutation.isPending}
-                  className="btn-secondary w-full"
-                >
-                  Перегенерировать
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleGenerateAvatar}
+                    disabled={generateAvatarMutation.isPending}
+                    className="btn-secondary flex-1"
+                  >
+                    Перегенерировать
+                  </button>
+                  {currentStep === 5 && (
+                    <button
+                      onClick={async () => {
+                        await projectsApi.updateStep(currentProject.id, 6)
+                        setCurrentProject({ ...currentProject, current_step: 6 })
+                      }}
+                      className="btn-primary flex-1"
+                    >
+                      Далее: Монтаж
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
