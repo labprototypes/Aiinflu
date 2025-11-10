@@ -124,37 +124,57 @@ class FFmpegHelper:
             # Build filter_complex for timeline overlays
             filters = []
             inputs = ['-i', avatar_path, '-i', audio_path]
+            
+            # Map material_id to input index (to avoid duplicates)
+            mat_id_to_input = {}
             input_index = 2
             
-            # For each timeline segment with material
-            for i, segment in enumerate(timeline):
+            # Add unique materials as inputs
+            for segment in timeline:
                 mat_id = segment.get('material_id')
                 if mat_id and mat_id != 'MISSING' and mat_id in material_paths:
-                    mat_path = material_paths[mat_id]
-                    inputs.extend(['-i', mat_path])
+                    if mat_id not in mat_id_to_input:
+                        mat_path = material_paths[mat_id]
+                        inputs.extend(['-i', mat_path])
+                        mat_id_to_input[mat_id] = input_index
+                        input_index += 1
+            
+            # Build filter chain
+            overlay_count = 0
+            prev_video = '[0:v]'
+            
+            for i, segment in enumerate(timeline):
+                mat_id = segment.get('material_id')
+                if mat_id and mat_id != 'MISSING' and mat_id in mat_id_to_input:
+                    mat_input = mat_id_to_input[mat_id]
                     
                     start_time = segment.get('start_time', 0)
                     end_time = segment.get('end_time', start_time + 5)
                     duration = end_time - start_time
                     
-                    # Scale and overlay material
+                    # Scale and fade material
                     filters.append(
-                        f"[{input_index}:v]scale=640:360,fade=t=in:st=0:d=0.5,fade=t=out:st={duration-0.5}:d=0.5[mat{i}];"
-                        f"[0:v][mat{i}]overlay=W-w-20:H-h-20:enable='between(t,{start_time},{end_time})'[v{i}]"
+                        f"[{mat_input}:v]scale=640:360,fade=t=in:st=0:d=0.5,fade=t=out:st={duration-0.5}:d=0.5[mat{overlay_count}];"
                     )
                     
-                    input_index += 1
+                    # Overlay on previous video
+                    next_video = f"[v{overlay_count}]"
+                    filters.append(
+                        f"{prev_video}[mat{overlay_count}]overlay=W-w-20:H-h-20:enable='between(t,{start_time},{end_time})'{next_video};"
+                    )
+                    
+                    prev_video = next_video
+                    overlay_count += 1
             
             output_path = os.path.join(temp_dir, output_filename)
             
             if filters:
                 # Apply overlays
-                filter_complex = ''.join(filters)
-                last_video = f"[v{len(timeline)-1}]"
+                filter_complex = ''.join(filters).rstrip(';')
                 
                 cmd = ['ffmpeg'] + inputs + [
                     '-filter_complex', filter_complex,
-                    '-map', last_video,
+                    '-map', prev_video,
                     '-map', '1:a:0',
                     '-c:v', 'libx264',
                     '-c:a', 'aac',
