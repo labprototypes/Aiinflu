@@ -36,7 +36,7 @@ class FalAIHelper:
         if not api_key:
             raise ValueError("FAL_KEY not configured")
         
-    try:
+        try:
             print(">>> [falai_helper] Starting fal.ai InfiniTalk generation (async)...")
             print(f">>> [falai_helper] Audio URL: {audio_url}")
             print(f">>> [falai_helper] Image URL: {image_url}")
