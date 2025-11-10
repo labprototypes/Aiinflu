@@ -328,6 +328,11 @@ export default function CreatePage() {
 
   const handleComposeFinal = () => {
     if (currentProject) {
+      // Clear final_video_url to show progress UI during regeneration
+      if (currentProject.final_video_url) {
+        setCurrentProject({ ...currentProject, final_video_url: null })
+      }
+      
       composeFinalMutation.mutate({
         id: currentProject.id,
         options: { add_subtitles: addSubtitles, advanced_composition: true },
@@ -806,8 +811,8 @@ export default function CreatePage() {
                   )}
                 </div>
               ) : (
-                <div className="text-center">
-                  <div className="mb-6">
+                <div>
+                  <div className="text-center mb-6">
                     <div className="inline-block p-4 bg-green-600/20 rounded-full mb-4">
                       <Check size={48} className="text-green-500" />
                     </div>
@@ -821,6 +826,18 @@ export default function CreatePage() {
                     className="w-full rounded-lg mb-4"
                   />
 
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={addSubtitles}
+                        onChange={(e) => setAddSubtitles(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">Добавить субтитры</span>
+                    </label>
+                  </div>
+
                   <div className="flex gap-3">
                     <a
                       href={currentProject.final_video_url}
@@ -833,8 +850,9 @@ export default function CreatePage() {
                     <button
                       onClick={handleComposeFinal}
                       disabled={composeFinalMutation.isPending}
-                      className="btn-secondary"
+                      className="btn-secondary flex-1 flex items-center justify-center gap-2"
                     >
+                      {composeFinalMutation.isPending && <Loader2 size={20} className="animate-spin" />}
                       Пересобрать
                     </button>
                   </div>
