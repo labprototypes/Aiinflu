@@ -45,7 +45,9 @@ class FFmpegHelper:
                 mat_id = mat.get('id')
                 mat_url = mat.get('url')
                 if mat_id and mat_url:
-                    ext = os.path.splitext(mat_url)[1] or '.jpg'
+                    # Extract extension from URL (before query parameters)
+                    url_path = mat_url.split('?')[0]
+                    ext = os.path.splitext(url_path)[1] or '.jpg'
                     mat_path = FFmpegHelper._download_file(mat_url, temp_dir, f'mat_{mat_id}{ext}')
                     material_paths[mat_id] = mat_path
             
@@ -113,7 +115,9 @@ class FFmpegHelper:
                 mat_id = mat.get('id')
                 mat_url = mat.get('url')
                 if mat_id and mat_url:
-                    ext = os.path.splitext(mat_url)[1] or '.jpg'
+                    # Extract extension from URL (before query parameters)
+                    url_path = mat_url.split('?')[0]
+                    ext = os.path.splitext(url_path)[1] or '.jpg'
                     mat_path = FFmpegHelper._download_file(mat_url, temp_dir, f'mat_{mat_id}{ext}')
                     material_paths[mat_id] = mat_path
             
