@@ -152,16 +152,17 @@ class FFmpegHelper:
                     end_time = segment.get('end_time', start_time + 5)
                     duration = end_time - start_time
                     
-                    # Scale material to smaller size for corner overlay
-                    # Note: Images are static, overlay enable= will handle timing
+                    # Scale material to fit video dimensions (832x1088) while preserving aspect ratio
+                    # force_original_aspect_ratio=decrease ensures image fits within bounds
+                    # pad adds black bars to center the image
                     filters.append(
-                        f"[{mat_input}:v]scale=480:270[mat{overlay_count}];"
+                        f"[{mat_input}:v]scale=832:1088:force_original_aspect_ratio=decrease,pad=832:1088:(ow-iw)/2:(oh-ih)/2:black[mat{overlay_count}];"
                     )
                     
-                    # Overlay on previous video with enable to control timing
+                    # Overlay centered on video with timing control
                     next_video = f"[v{overlay_count}]"
                     filters.append(
-                        f"{prev_video}[mat{overlay_count}]overlay=W-w-20:H-h-20:enable='between(t,{start_time},{end_time})'{next_video};"
+                        f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:(H-h)/2:enable='between(t,{start_time},{end_time})'{next_video};"
                     )
                     
                     prev_video = next_video
