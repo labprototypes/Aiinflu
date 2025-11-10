@@ -30,6 +30,7 @@ export default function CreatePage() {
   const [analyzeStatus, setAnalyzeStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
   const [avatarGenStatus, setAvatarGenStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
   const [avatarRequestId, setAvatarRequestId] = useState<string | null>(null)
+  const [viewStep, setViewStep] = useState<number | null>(null) // Which step to display (null = use current_step)
   const queryClient = useQueryClient()
 
   // Load project from navigation state (when continuing from Projects page)
@@ -351,12 +352,15 @@ export default function CreatePage() {
 
   const handleStepClick = (step: number) => {
     if (currentProject && step <= currentProject.current_step) {
-      // Only allow navigating to completed or current steps
-      changeStepMutation.mutate({ id: currentProject.id, step })
+      // Just change the view, don't update DB
+      setViewStep(step)
     }
   }
 
-  const currentStep = currentProject?.current_step || 0
+  // Displayed step: use viewStep if set, otherwise use current_step from project
+  const displayStep = viewStep !== null ? viewStep : (currentProject?.current_step || 0)
+  // Maximum reached step (from DB)
+  const maxStep = currentProject?.current_step || 0
 
   return (
     <div className="animate-fade-in">
@@ -368,7 +372,8 @@ export default function CreatePage() {
       {/* Stepper */}
       {currentProject && (
         <Stepper 
-          currentStep={currentStep} 
+          currentStep={displayStep}
+          maxStep={maxStep}
           steps={STEPS} 
           onStepClick={handleStepClick}
         />
@@ -420,7 +425,7 @@ export default function CreatePage() {
       )}
 
       {/* Step 1: Scenario Input */}
-      {currentProject && currentStep === 1 && (
+      {currentProject && displayStep === 1 && (
         <div className="glass-card p-8">
           <h3 className="text-xl font-bold mb-4">Этап 1: Введите сценарий</h3>
           
@@ -453,7 +458,7 @@ export default function CreatePage() {
       )}
 
       {/* Step 2: Voiceover Text & Audio */}
-      {currentProject && currentStep === 2 && voiceoverText && (
+      {currentProject && displayStep === 2 && voiceoverText && (
         <div className="glass-card p-8 mb-6">
           <h3 className="text-xl font-bold mb-4">Этап 2: Текст для озвучки</h3>
           
@@ -517,7 +522,7 @@ export default function CreatePage() {
       )}
 
       {/* Next steps placeholder */}
-      {currentProject && currentStep >= 3 && (
+      {currentProject && displayStep >= 3 && (
         <>
           {/* Step 3: Materials Upload */}
           <div className="glass-card p-8 mb-6">
@@ -598,7 +603,7 @@ export default function CreatePage() {
                 </div>
 
                 {/* Next Step Button - Show after successful analysis */}
-                {analyzeStatus === 'done' && currentStep === 3 && (
+                {analyzeStatus === 'done' && displayStep === 3 && (
                   <div className="mt-6">
                     <button
                       onClick={() => {
@@ -608,6 +613,7 @@ export default function CreatePage() {
                             .then(() => {
                               queryClient.invalidateQueries({ queryKey: ['projects'] })
                               setCurrentProject({ ...currentProject, current_step: 4 })
+                              setViewStep(null) // Reset view to follow DB step
                             })
                         }
                       }}
@@ -623,7 +629,7 @@ export default function CreatePage() {
           </div>
 
           {/* Step 4: Timeline */}
-          {currentStep >= 4 && (
+          {displayStep >= 4 && (
             <div className="glass-card p-8">
               <h3 className="text-xl font-bold mb-4">Этап 4: Тайминги и монтаж</h3>
 
@@ -689,7 +695,7 @@ export default function CreatePage() {
               )}
 
               {/* Next Step Button - Show after timeline is generated */}
-              {currentProject.timeline && currentProject.timeline.length > 0 && currentStep === 4 && (
+              {currentProject.timeline && currentProject.timeline.length > 0 && displayStep === 4 && (
                 <div className="mt-6">
                   <button
                     onClick={() => {
@@ -699,6 +705,7 @@ export default function CreatePage() {
                           .then(() => {
                             queryClient.invalidateQueries({ queryKey: ['projects'] })
                             setCurrentProject({ ...currentProject, current_step: 5 })
+                            setViewStep(null) // Reset view to follow DB step
                           })
                       }
                     }}
@@ -715,7 +722,7 @@ export default function CreatePage() {
       )}
 
       {/* Future steps */}
-      {currentProject && currentStep >= 5 && (
+      {currentProject && displayStep >= 5 && (
         <>
           {/* Step 5: Avatar Video Generation */}
           <div className="glass-card p-8 mb-6">
@@ -782,11 +789,12 @@ export default function CreatePage() {
                   >
                     Перегенерировать
                   </button>
-                  {currentStep === 5 && (
+                  {displayStep === 5 && (
                     <button
                       onClick={async () => {
                         await projectsApi.updateStep(currentProject.id, 6)
                         setCurrentProject({ ...currentProject, current_step: 6 })
+                        setViewStep(null) // Reset view to follow DB step
                       }}
                       className="btn-primary flex-1"
                     >
@@ -799,7 +807,7 @@ export default function CreatePage() {
           </div>
 
           {/* Step 6: Final Composition */}
-          {currentStep >= 6 && currentProject.avatar_video_url && (
+          {displayStep >= 6 && currentProject.avatar_video_url && (
             <div className="glass-card p-8">
               <h3 className="text-xl font-bold mb-4">Этап 6: Финальный монтаж</h3>
 
