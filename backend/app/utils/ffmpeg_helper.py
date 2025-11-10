@@ -182,6 +182,9 @@ class FFmpegHelper:
                     '-y',
                     output_path
                 ]
+                
+                current_app.logger.info(f"FFmpeg command: {' '.join(cmd[:10])}...")
+                current_app.logger.info(f"Filter complex: {filter_complex}")
             else:
                 # Fallback: simple composition
                 cmd = [
@@ -196,13 +199,16 @@ class FFmpegHelper:
                     '-y',
                     output_path
                 ]
+                current_app.logger.info("Using simple composition (no overlays)")
             
-            current_app.logger.info(f"Running FFmpeg with {len(timeline)} timeline segments")
+            current_app.logger.info(f"Running FFmpeg with {len(timeline)} timeline segments, {overlay_count} overlays")
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode != 0:
-                raise RuntimeError(f"FFmpeg error: {result.stderr}")
+                current_app.logger.error(f"FFmpeg stderr: {result.stderr[-2000:]}")  # Last 2000 chars
+                raise RuntimeError(f"FFmpeg error: {result.stderr[-1000:]}")  # Last 1000 chars in exception
             
+            current_app.logger.info(f"FFmpeg composition completed successfully")
             return output_path
             
         except Exception as e:
