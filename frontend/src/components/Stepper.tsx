@@ -1,9 +1,10 @@
 interface StepperProps {
   currentStep: number
   steps: Array<{ number: number; title: string }>
+  onStepClick?: (step: number) => void
 }
 
-export default function Stepper({ currentStep, steps }: StepperProps) {
+export default function Stepper({ currentStep, steps, onStepClick }: StepperProps) {
   return (
     <div className="glass-card p-6 mb-8">
       <div className="flex items-center justify-between">
@@ -11,17 +12,20 @@ export default function Stepper({ currentStep, steps }: StepperProps) {
           <div key={step.number} className="flex items-center flex-1">
             {/* Step circle */}
             <div className="flex flex-col items-center">
-              <div
+              <button
+                onClick={() => onStepClick?.(step.number)}
+                disabled={step.number > currentStep}
                 className={`w-12 h-12 rounded-full flex items-center justify-center font-bold transition-smooth ${
                   step.number < currentStep
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
                     : step.number === currentStep
-                    ? 'bg-blue-600 text-white ring-4 ring-blue-600/30'
-                    : 'bg-white/10 text-white/40'
-                }`}
+                    ? 'bg-blue-600 text-white ring-4 ring-blue-600/30 cursor-default'
+                    : 'bg-white/10 text-white/40 cursor-not-allowed'
+                } ${step.number < currentStep ? 'hover:scale-110' : ''}`}
+                title={step.number <= currentStep ? `Перейти к этапу ${step.number}` : 'Этап не доступен'}
               >
                 {step.number < currentStep ? '✓' : step.number}
-              </div>
+              </button>
               <span
                 className={`text-xs mt-2 text-center ${
                   step.number === currentStep ? 'text-white font-medium' : 'text-white/60'

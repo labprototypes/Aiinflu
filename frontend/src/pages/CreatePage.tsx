@@ -68,6 +68,15 @@ export default function CreatePage() {
     },
   })
 
+  const changeStepMutation = useMutation({
+    mutationFn: ({ id, step }: { id: string; step: number }) =>
+      projectsApi.updateStep(id, step),
+    onSuccess: (response) => {
+      setCurrentProject(response.data as Project)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+
   const extractTextMutation = useMutation({
     mutationFn: (id: string) => projectsApi.extractText(id),
     onSuccess: (response) => {
@@ -340,6 +349,13 @@ export default function CreatePage() {
     }
   }
 
+  const handleStepClick = (step: number) => {
+    if (currentProject && step <= currentProject.current_step) {
+      // Only allow navigating to completed or current steps
+      changeStepMutation.mutate({ id: currentProject.id, step })
+    }
+  }
+
   const currentStep = currentProject?.current_step || 0
 
   return (
@@ -350,7 +366,13 @@ export default function CreatePage() {
       </div>
 
       {/* Stepper */}
-      {currentProject && <Stepper currentStep={currentStep} steps={STEPS} />}
+      {currentProject && (
+        <Stepper 
+          currentStep={currentStep} 
+          steps={STEPS} 
+          onStepClick={handleStepClick}
+        />
+      )}
 
       {/* Step 0: Select Blogger */}
       {!currentProject && (
