@@ -477,40 +477,6 @@ def check_avatar_status(project_id, request_id):
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-@bp.route('/projects/<project_id>/save-avatar-video-url', methods=['POST'])
-def save_avatar_video_url(project_id):
-    """Manually save avatar video URL (useful for recovering failed generations)"""
-    project = Project.query.get_or_404(project_id)
-    data = request.get_json()
-    
-    video_url = data.get('video_url')
-    if not video_url:
-        return jsonify({'error': 'video_url is required'}), 400
-    
-    try:
-        project.avatar_video_url = video_url
-        
-        # Update status in avatar_generation_params
-        if project.avatar_generation_params:
-            params = project.avatar_generation_params.copy()
-            params['status'] = 'completed'
-            params['video_url'] = video_url
-            project.avatar_generation_params = params
-        
-        project.current_step = 5  # Ready for final composition
-        db.session.commit()
-        
-        current_app.logger.info(f"Manually saved video URL for project {project_id}: {video_url}")
-        
-        return jsonify({
-            'message': 'Video URL saved successfully',
-            'project': project.to_dict()
-        })
-    except Exception as e:
-        current_app.logger.error(f"Error saving video URL: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-
 @bp.route('/projects/<project_id>/compose-final-video', methods=['POST'])
 def compose_final_video(project_id):
     """Compose final video with FFmpeg"""
