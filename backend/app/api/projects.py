@@ -397,6 +397,7 @@ Prompt:"""
         # Get HeyGen avatar_id based on selected location
         heygen_avatar_id = "00000"
         selected_location_name = "Frontal image"
+        location_explicitly_selected = False
         
         if project.location_id is not None and project.blogger.settings:
             # Use selected location's avatar_id
@@ -405,12 +406,13 @@ Prompt:"""
                 location = locations[project.location_id]
                 heygen_avatar_id = location.get('heygen_avatar_id', '00000')
                 selected_location_name = location.get('name', f'Location {project.location_id + 1}')
+                location_explicitly_selected = True  # Mark that location was explicitly chosen
                 print(f">>> Using location: {selected_location_name}")
             else:
                 print(f">>> WARNING: Invalid location_id {project.location_id}")
         
-        # Fallback to frontal image avatar_id if no location selected
-        if heygen_avatar_id == "00000" and project.blogger.settings:
+        # Fallback to frontal image avatar_id ONLY if no location was explicitly selected
+        if heygen_avatar_id == "00000" and not location_explicitly_selected and project.blogger.settings:
             heygen_avatar_id = project.blogger.settings.get('heygen_avatar_id', '00000')
             selected_location_name = "Frontal image (default)"
         
