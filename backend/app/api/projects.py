@@ -437,28 +437,25 @@ Prompt:"""
                         print(f">>> Using location image: {selected_location_name}")
             
             try:
-                # Upload photo to HeyGen and get talking_photo_id
+                # Try uploading photo first
                 from app.utils.heygen_helper import HeyGenHelper
                 talking_photo_id = HeyGenHelper.upload_talking_photo(image_url_for_upload)
-                heygen_avatar_id = talking_photo_id  # Use talking_photo_id as avatar_id
+                heygen_avatar_id = talking_photo_id
                 use_talking_photo = True
                 print(f">>> Photo uploaded successfully, talking_photo_id: {heygen_avatar_id}")
                 current_app.logger.info(f"Photo uploaded to HeyGen: {heygen_avatar_id}")
             except Exception as upload_error:
-                error_msg = (
-                    f"Failed to upload photo to HeyGen: {str(upload_error)}. "
-                    "\n\nThis may be because:\n"
-                    "1. Your HeyGen account doesn't have credits for Instant Avatars\n"
-                    "2. Photo upload requires HeyGen Pro plan (€84/month)\n"
-                    "3. The API endpoint has changed\n"
-                    "\n"
-                    "Alternative solutions:\n"
-                    "- Manually create avatar at https://app.heygen.com/avatars and use its ID\n"
-                    "- Or use public talking_photo_id from /api/heygen/avatars endpoint"
-                )
-                print(f">>> ERROR: {error_msg}")
-                current_app.logger.error(error_msg)
-                return jsonify({'error': error_msg}), 500
+                # Upload failed - try using image URL directly
+                print(f">>> Photo upload failed: {str(upload_error)}")
+                print(f">>> Trying alternative: use image URL directly in video generation")
+                current_app.logger.warning(f"Photo upload failed, trying image URL directly: {str(upload_error)}")
+                
+                # Use special marker to tell video generation to use image_url
+                heygen_avatar_id = "USE_IMAGE_URL"
+                use_talking_photo = True
+                
+                # Update fresh_image_url to the location image if needed
+                fresh_image_url = image_url_for_upload
         
         print(f">>> Using HeyGen avatar: {heygen_avatar_id} ({selected_location_name})")
         if use_talking_photo:

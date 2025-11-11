@@ -216,23 +216,32 @@ class HeyGenHelper:
             
             current_app.logger.info(f"Using HeyGen avatar/talking_photo: {avatar_id} (length: {len(avatar_id)})")
             
-            # Detect if this is a talking_photo_id (longer format) or regular avatar_id
-            # talking_photo_id format: typically longer UUID-like strings
-            # avatar_id format: typically 32-char hex strings
-            
-            # For now, treat all as "avatar" type (HeyGen API handles both)
-            # Use pre-configured avatar or talking_photo with custom audio
-            video_inputs = [{
-                "character": {
-                    "type": "avatar",
-                    "avatar_id": avatar_id,
-                    "avatar_style": "normal"
-                },
-                "voice": {
-                    "type": "audio",
-                    "audio_url": audio_url
-                }
-            }]
+            # Try using image_url directly if avatar_id is "USE_IMAGE_URL" special marker
+            if avatar_id == "USE_IMAGE_URL":
+                current_app.logger.info("Using image_url directly (talking_photo mode)")
+                video_inputs = [{
+                    "character": {
+                        "type": "talking_photo",
+                        "talking_photo_url": image_url
+                    },
+                    "voice": {
+                        "type": "audio",
+                        "audio_url": audio_url
+                    }
+                }]
+            else:
+                # Use pre-configured avatar_id or talking_photo_id
+                video_inputs = [{
+                    "character": {
+                        "type": "avatar",
+                        "avatar_id": avatar_id,
+                        "avatar_style": "normal"
+                    },
+                    "voice": {
+                        "type": "audio",
+                        "audio_url": audio_url
+                    }
+                }]
             
             request_body = {
                 "video_inputs": video_inputs,
