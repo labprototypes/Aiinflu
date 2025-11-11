@@ -123,47 +123,20 @@ class HeyGenHelper:
                 'Content-Type': 'application/json'
             }
             
-            # Use pre-configured avatar_id if provided, otherwise try to upload photo
-            if avatar_id:
-                current_app.logger.info(f"Using pre-configured HeyGen avatar: {avatar_id}")
-                
-                # Use existing HeyGen avatar with custom audio
-                video_inputs = [{
-                    "character": {
-                        "type": "avatar",
-                        "avatar_id": avatar_id,
-                        "avatar_style": "normal"
-                    },
-                    "voice": {
-                        "type": "audio",
-                        "audio_url": audio_url
-                    }
-                }]
-            else:
-                # Fallback: try to upload photo (may not work with all HeyGen plans)
-                current_app.logger.info("No avatar_id provided, attempting photo upload...")
-                try:
-                    talking_photo_id = HeyGenHelper.upload_talking_photo(image_url)
-                    current_app.logger.info(f"Got talking_photo_id: {talking_photo_id}")
-                    
-                    video_inputs = [{
-                        "character": {
-                            "type": "talking_photo",
-                            "talking_photo_id": talking_photo_id,
-                            "talking_style": "stable"
-                        },
-                        "voice": {
-                            "type": "audio",
-                            "audio_url": audio_url
-                        }
-                    }]
-                except Exception as upload_error:
-                    error_msg = (
-                        f"No avatar_id configured for this blogger and photo upload failed: {str(upload_error)}. "
-                        "Please configure heygen_avatar_id in blogger settings or upgrade HeyGen plan."
-                    )
-                    current_app.logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+            # Simple approach: direct photo URL + audio URL
+            # No need for avatar_id or photo upload
+            current_app.logger.info("Using direct photo + audio method")
+            
+            video_inputs = [{
+                "character": {
+                    "type": "talk",
+                    "source_url": image_url  # Direct link to photo
+                },
+                "voice": {
+                    "type": "audio",
+                    "audio_url": audio_url  # Direct link to audio
+                }
+            }]
             
             request_body = {
                 "video_inputs": video_inputs,
