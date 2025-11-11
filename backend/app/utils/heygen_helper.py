@@ -95,8 +95,21 @@ class HeyGenHelper:
             current_app.logger.info(f"Upload asset response status: {response.status_code}")
             current_app.logger.info(f"Upload asset response body: {response.text}")
             
-            response.raise_for_status()
-            result = response.json()
+            # Parse response first before raising error
+            try:
+                result = response.json()
+            except Exception as json_error:
+                current_app.logger.error(f"Failed to parse JSON response: {json_error}")
+                current_app.logger.error(f"Raw response: {response.text}")
+                response.raise_for_status()  # Will show HTTP error
+                raise
+            
+            # Check HTTP status after we have the result
+            if response.status_code >= 400:
+                error_msg = result.get('message', result.get('error', {}).get('message', 'Unknown error'))
+                current_app.logger.error(f"HeyGen API error: {error_msg}")
+                current_app.logger.error(f"Full response: {result}")
+                raise RuntimeError(f"HeyGen API error ({response.status_code}): {error_msg}")
             
             current_app.logger.info(f"HeyGen upload asset response: {result}")
             
