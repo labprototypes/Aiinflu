@@ -207,6 +207,11 @@ class HeyGenHelper:
                 raise ValueError("No id in HeyGen response")
             
             current_app.logger.info(f"Avatar group created: group_id={group_id}, avatar_id={avatar_id}")
+            
+            # Wait for avatar to be ready (processing is asynchronous)
+            current_app.logger.info("Waiting for avatar to complete processing...")
+            HeyGenHelper._wait_for_avatar_ready(avatar_id)
+            
             return {
                 'group_id': group_id,
                 'avatar_id': avatar_id
@@ -215,6 +220,61 @@ class HeyGenHelper:
         except Exception as e:
             current_app.logger.error(f"Failed to create avatar group: {str(e)}")
             raise RuntimeError(f"Avatar group creation failed: {str(e)}")
+    
+    @staticmethod
+    def _wait_for_avatar_ready(avatar_id: str, max_wait: int = 60, poll_interval: int = 3):
+        """
+        Poll avatar status until it's ready for use
+        
+        Args:
+            avatar_id: Avatar ID to check
+            max_wait: Maximum seconds to wait (default 60)
+            poll_interval: Seconds between polls (default 3)
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        headers = {
+            'accept': 'application/json',
+            'x-api-key': api_key
+        }
+        
+        start_time = time.time()
+        
+        while True:
+            elapsed = time.time() - start_time
+            
+            if elapsed > max_wait:
+                current_app.logger.warning(f"Avatar {avatar_id} not ready after {max_wait}s, continuing anyway...")
+                return  # Continue without error - might work
+            
+            try:
+                # Check avatar status
+                response = requests.get(
+                    f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/{avatar_id}",
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    data = result.get('data', {})
+                    status = data.get('status', 'unknown')
+                    
+                    current_app.logger.info(f"Avatar status: {status} (waited {elapsed:.1f}s)")
+                    
+                    if status == 'completed':
+                        current_app.logger.info(f"Avatar ready after {elapsed:.1f}s")
+                        return
+                    elif status == 'failed':
+                        raise RuntimeError(f"Avatar processing failed: {data.get('error', 'Unknown error')}")
+                
+            except requests.exceptions.RequestException as e:
+                current_app.logger.warning(f"Error checking avatar status: {e}")
+            
+            # Wait before next poll
+            time.sleep(poll_interval)
     
     @staticmethod
     def add_motion_to_avatar(avatar_id: str, motion_type: str = 'veo2') -> Dict:
