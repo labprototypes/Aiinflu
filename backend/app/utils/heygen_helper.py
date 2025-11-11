@@ -180,6 +180,9 @@ class HeyGenHelper:
                 timeout=60
             )
             
+            current_app.logger.info(f"Create group response status: {response.status_code}")
+            current_app.logger.info(f"Create group response body: {response.text}")
+            
             response.raise_for_status()
             result = response.json()
             
@@ -188,6 +191,12 @@ class HeyGenHelper:
             if result.get('error'):
                 error_msg = result.get('error', {}).get('message', 'Unknown error')
                 raise RuntimeError(f"HeyGen create group error: {error_msg}")
+            
+            # Check for errors at root level
+            if result.get('code') and result.get('code') != 100:
+                error_msg = result.get('message', 'Unknown error')
+                current_app.logger.error(f"HeyGen create group error: {error_msg}")
+                raise RuntimeError(f"HeyGen create group error ({result.get('code')}): {error_msg}")
             
             data = result.get('data', {})
             group_id = data.get('group_id')
