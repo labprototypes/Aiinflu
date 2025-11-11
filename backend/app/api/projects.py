@@ -416,52 +416,19 @@ Prompt:"""
             heygen_avatar_id = project.blogger.settings.get('heygen_avatar_id', '00000')
             selected_location_name = "Frontal image (default)"
         
-        # Check if avatar_id is configured
-        use_talking_photo = False
+        # Validate that avatar_id is configured
         if not heygen_avatar_id or heygen_avatar_id == "00000":
-            # Avatar ID not configured - try to upload photo to HeyGen as talking_photo
-            print(f">>> No avatar_id configured, will upload photo to HeyGen (trying multiple endpoints)")
-            current_app.logger.info(f"No avatar_id configured, uploading photo to HeyGen")
-            
-            # Determine which image to use based on location
-            image_url_for_upload = fresh_image_url  # Default to frontal image
-            
-            if project.location_id is not None and project.blogger.settings:
-                locations = project.blogger.settings.get('locations', [])
-                if project.location_id < len(locations):
-                    location = locations[project.location_id]
-                    location_image_s3 = location.get('image_url')
-                    if location_image_s3:
-                        # Generate fresh presigned URL for location image
-                        image_url_for_upload = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
-                        print(f">>> Using location image: {selected_location_name}")
-            
-            try:
-                # Try uploading photo first
-                from app.utils.heygen_helper import HeyGenHelper
-                talking_photo_id = HeyGenHelper.upload_talking_photo(image_url_for_upload)
-                heygen_avatar_id = talking_photo_id
-                use_talking_photo = True
-                print(f">>> Photo uploaded successfully, talking_photo_id: {heygen_avatar_id}")
-                current_app.logger.info(f"Photo uploaded to HeyGen: {heygen_avatar_id}")
-            except Exception as upload_error:
-                # Upload failed - try using image URL directly
-                print(f">>> Photo upload failed: {str(upload_error)}")
-                print(f">>> Trying alternative: use image URL directly in video generation")
-                current_app.logger.warning(f"Photo upload failed, trying image URL directly: {str(upload_error)}")
-                
-                # Use special marker to tell video generation to use image_url
-                heygen_avatar_id = "USE_IMAGE_URL"
-                use_talking_photo = True
-                
-                # Update fresh_image_url to the location image if needed
-                fresh_image_url = image_url_for_upload
+            error_msg = (
+                "Avatar ID not configured. Please set a valid HeyGen avatar_id "
+                "in the location settings or blogger settings. "
+                "Get avatar IDs from HeyGen dashboard: https://app.heygen.com/avatars or use GET /api/heygen/avatars"
+            )
+            print(f">>> ERROR: {error_msg}")
+            current_app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 400
         
         print(f">>> Using HeyGen avatar: {heygen_avatar_id} ({selected_location_name})")
-        if use_talking_photo:
-            print(f">>> Mode: Talking Photo (uploaded to HeyGen, Free plan with watermark)")
-        else:
-            print(f">>> Mode: Pre-configured Avatar ID")
+        print(f">>> Mode: Pre-configured Avatar ID")
         
         # Start async generation (returns immediately with video_id)
         try:
