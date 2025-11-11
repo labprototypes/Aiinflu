@@ -184,9 +184,14 @@ class HeyGenHelper:
                 current_app.logger.error(error_msg)
                 raise ValueError(error_msg)
             
-            current_app.logger.info(f"Using HeyGen avatar: {avatar_id} (length: {len(avatar_id)})")
+            current_app.logger.info(f"Using HeyGen avatar/talking_photo: {avatar_id} (length: {len(avatar_id)})")
             
-            # Use pre-configured avatar with custom audio
+            # Detect if this is a talking_photo_id (longer format) or regular avatar_id
+            # talking_photo_id format: typically longer UUID-like strings
+            # avatar_id format: typically 32-char hex strings
+            
+            # For now, treat all as "avatar" type (HeyGen API handles both)
+            # Use pre-configured avatar or talking_photo with custom audio
             video_inputs = [{
                 "character": {
                     "type": "avatar",
