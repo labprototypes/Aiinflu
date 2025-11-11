@@ -85,7 +85,7 @@ class HeyGenHelper:
             }
             
             response = requests.post(
-                f"{HeyGenHelper.BASE_URL}/v1/asset",
+                "https://upload.heygen.com/v1/asset",
                 headers=headers,
                 json={'url': image_url},
                 timeout=60
@@ -197,7 +197,7 @@ class HeyGenHelper:
             }
             
             response = requests.post(
-                f"{HeyGenHelper.BASE_URL}/v1/photo_avatar.add_motion",
+                f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/add_motion",
                 headers=headers,
                 json={
                     'avatar_id': avatar_id,
