@@ -236,28 +236,53 @@ class HeyGenHelper:
             current_app.logger.info(f"Adding motion to avatar: {avatar_id}, type={motion_type}")
             
             headers = {
-                'X-Api-Key': api_key,
-                'Content-Type': 'application/json'
+                'accept': 'application/json',
+                'content-type': 'application/json',
+                'x-api-key': api_key
             }
+            
+            # API expects 'id' and 'motion_type', not 'avatar_id' and 'type'
+            request_body = {
+                'id': avatar_id,
+                'motion_type': motion_type
+            }
+            
+            current_app.logger.info(f"Add motion request body: {request_body}")
             
             response = requests.post(
                 f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/add_motion",
                 headers=headers,
-                json={
-                    'avatar_id': avatar_id,
-                    'type': motion_type
-                },
+                json=request_body,
                 timeout=60
             )
             
-            response.raise_for_status()
-            result = response.json()
+            current_app.logger.info(f"Add motion response status: {response.status_code}")
+            current_app.logger.info(f"Add motion response body: {response.text}")
             
-            current_app.logger.info(f"HeyGen add motion response: {result}")
+            # Parse response before raising error
+            try:
+                result = response.json()
+            except Exception as json_error:
+                current_app.logger.error(f"Failed to parse JSON response: {json_error}")
+                current_app.logger.error(f"Raw response: {response.text}")
+                response.raise_for_status()
+                raise
+            
+            # Check for errors at any level
+            if response.status_code >= 400:
+                error_msg = result.get('message', result.get('error', {}).get('message', 'Unknown error'))
+                current_app.logger.error(f"HeyGen add motion API error: {error_msg}")
+                current_app.logger.error(f"Full error response: {result}")
+                raise RuntimeError(f"HeyGen add motion error ({response.status_code}): {error_msg}")
             
             if result.get('error'):
                 error_msg = result.get('error', {}).get('message', 'Unknown error')
                 raise RuntimeError(f"HeyGen add motion error: {error_msg}")
+            
+            if result.get('code') and result.get('code') != 100:
+                error_msg = result.get('message', 'Unknown error')
+                current_app.logger.error(f"HeyGen add motion error: {error_msg}")
+                raise RuntimeError(f"HeyGen add motion error ({result.get('code')}): {error_msg}")
             
             current_app.logger.info(f"Motion added successfully to avatar: {avatar_id}")
             return result
