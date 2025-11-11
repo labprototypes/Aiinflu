@@ -257,6 +257,9 @@ class HeyGenHelper:
                     timeout=10
                 )
                 
+                current_app.logger.info(f"Avatar status check: {response.status_code}")
+                current_app.logger.info(f"Avatar status response: {response.text}")
+                
                 if response.status_code == 200:
                     result = response.json()
                     data = result.get('data', {})
@@ -266,6 +269,9 @@ class HeyGenHelper:
                     
                     if status == 'completed':
                         current_app.logger.info(f"Avatar ready after {elapsed:.1f}s")
+                        # Add extra 5 seconds buffer to ensure HeyGen internal sync
+                        current_app.logger.info("Adding 5s buffer for HeyGen internal sync...")
+                        time.sleep(5)
                         return
                     elif status == 'failed':
                         raise RuntimeError(f"Avatar processing failed: {data.get('error', 'Unknown error')}")

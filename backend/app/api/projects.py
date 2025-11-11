@@ -457,7 +457,7 @@ Prompt:"""
                 
                 # Step 4: Wait for motion processing to complete
                 print(f">>> Step 4: Waiting for motion processing to complete...")
-                HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=120)
+                HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
                 print(f">>> Avatar is ready for video generation")
                 
                 # Save avatar_id back to location for future use
@@ -495,9 +495,80 @@ Prompt:"""
                 face_enhance=face_enhance
             )
         except RuntimeError as re:
-            # HeyGen responded with an error - log and return readable message
-            current_app.logger.error(f"Error in HeyGen start_avatar_generation: {str(re)}")
-            return jsonify({'error': 'HeyGen error', 'detail': str(re)}), 502
+            error_str = str(re)
+            
+            # Check if avatar not found (404) - recreate it automatically
+            if 'not found' in error_str.lower() or '404' in error_str:
+                print(f">>> Avatar not found in HeyGen, recreating automatically...")
+                current_app.logger.warning(f"Avatar {heygen_avatar_id} not found, recreating...")
+                
+                # Determine which image to use (same logic as above)
+                image_url_for_upload = fresh_image_url
+                if project.location_id is not None and project.blogger.settings:
+                    locations = project.blogger.settings.get('locations', [])
+                    if project.location_id < len(locations):
+                        location = locations[project.location_id]
+                        location_image_s3 = location.get('image_url')
+                        if location_image_s3:
+                            image_url_for_upload = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
+                
+                try:
+                    from app.utils.heygen_helper import HeyGenHelper
+                    
+                    # Recreate Photo Avatar
+                    print(f">>> Step 1: Uploading asset to HeyGen...")
+                    image_key = HeyGenHelper.upload_asset(image_url_for_upload)
+                    print(f">>> Asset uploaded, image_key: {image_key}")
+                    
+                    print(f">>> Step 2: Creating Photo Avatar Group...")
+                    avatar_name = f"{project.blogger.name} - {selected_location_name}"
+                    group_result = HeyGenHelper.create_photo_avatar_group(avatar_name, image_key)
+                    heygen_avatar_id = group_result['avatar_id']
+                    group_id = group_result['group_id']
+                    print(f">>> Avatar created: avatar_id={heygen_avatar_id}, group_id={group_id}")
+                    
+                    print(f">>> Step 3: Adding motion to avatar...")
+                    HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
+                    print(f">>> Motion added successfully")
+                    
+                    print(f">>> Step 4: Waiting for motion processing to complete...")
+                    HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=120)
+                    print(f">>> Avatar is ready for video generation")
+                    
+                    # Save new avatar_id to location
+                    if project.location_id is not None and project.blogger.settings:
+                        locations = project.blogger.settings.get('locations', [])
+                        if project.location_id < len(locations):
+                            from sqlalchemy.orm.attributes import flag_modified
+                            locations[project.location_id]['heygen_avatar_id'] = heygen_avatar_id
+                            locations[project.location_id]['heygen_group_id'] = group_id
+                            project.blogger.settings['locations'] = locations
+                            flag_modified(project.blogger, 'settings')
+                            db.session.commit()
+                            print(f">>> Saved new avatar_id to location")
+                    
+                    print(f">>> Photo Avatar recreated successfully: {heygen_avatar_id}")
+                    
+                    # Retry video generation with new avatar_id
+                    result = heygen_helper.start_avatar_generation(
+                        audio_url=fresh_audio_url,
+                        image_url=fresh_image_url,
+                        avatar_id=heygen_avatar_id,
+                        prompt=video_prompt,
+                        audio_duration=audio_duration,
+                        expression_scale=expression_scale,
+                        face_enhance=face_enhance
+                    )
+                    
+                except Exception as recreate_error:
+                    error_msg = f"Failed to recreate Photo Avatar: {str(recreate_error)}"
+                    print(f">>> ERROR: {error_msg}")
+                    current_app.logger.error(error_msg)
+                    return jsonify({'error': error_msg}), 500
+            else:
+                # Other error - log and return
+                current_app.logger.error(f"Error in HeyGen start_avatar_generation: {error_str}")
+                return jsonify({'error': 'HeyGen error', 'detail': error_str}), 502
         
         print(f">>> HeyGen returned: {result}")
         current_app.logger.info(f"HeyGen returned: {result}")
