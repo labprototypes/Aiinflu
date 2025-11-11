@@ -91,6 +91,9 @@ class HeyGenHelper:
                 timeout=60
             )
             
+            current_app.logger.info(f"Upload asset response status: {response.status_code}")
+            current_app.logger.info(f"Upload asset response body: {response.text}")
+            
             response.raise_for_status()
             result = response.json()
             
