@@ -21,7 +21,6 @@ class Blogger(db.Model):
     # Voice settings
     tone_of_voice = db.Column(db.Text)  # Описание стиля и тона
     elevenlabs_voice_id = db.Column(db.String(255))  # Voice ID from ElevenLabs
-    heygen_avatar_id = db.Column(db.String(255))  # HeyGen Avatar ID (pre-uploaded)
     
     # Metadata
     is_active = db.Column(db.Boolean, default=True)
