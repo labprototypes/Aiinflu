@@ -62,6 +62,9 @@ def update_project(project_id):
     current_app.logger.info(f"Updating project {project_id} with data: {data}")
     
     # Update allowed fields
+    if 'location_id' in data:
+        project.location_id = data['location_id']
+        current_app.logger.info(f"Updated location_id: {data['location_id']}")
     if 'scenario_text' in data:
         project.scenario_text = data['scenario_text']
         current_app.logger.info(f"Updated scenario_text: {data['scenario_text'][:100]}...")
@@ -391,23 +394,38 @@ Prompt:"""
         print(f">>> Fresh audio URL: {fresh_audio_url[:100]}...")
         print(f">>> Fresh image URL: {fresh_image_url[:100]}...")
         
-        # Get HeyGen avatar_id from blogger settings
+        # Get HeyGen avatar_id based on selected location
         heygen_avatar_id = "00000"
-        if project.blogger.settings:
+        selected_location_name = "Frontal image"
+        
+        if project.location_id is not None and project.blogger.settings:
+            # Use selected location's avatar_id
+            locations = project.blogger.settings.get('locations', [])
+            if project.location_id < len(locations):
+                location = locations[project.location_id]
+                heygen_avatar_id = location.get('heygen_avatar_id', '00000')
+                selected_location_name = location.get('name', f'Location {project.location_id + 1}')
+                print(f">>> Using location: {selected_location_name}")
+            else:
+                print(f">>> WARNING: Invalid location_id {project.location_id}")
+        
+        # Fallback to frontal image avatar_id if no location selected
+        if heygen_avatar_id == "00000" and project.blogger.settings:
             heygen_avatar_id = project.blogger.settings.get('heygen_avatar_id', '00000')
+            selected_location_name = "Frontal image (default)"
         
         # Check if avatar_id is configured
         if not heygen_avatar_id or heygen_avatar_id == "00000":
             error_msg = (
-                f"HeyGen avatar not configured for blogger '{project.blogger.name}'. "
-                "Please edit the blogger and set a valid HeyGen Avatar ID. "
+                f"HeyGen avatar not configured for '{selected_location_name}' of blogger '{project.blogger.name}'. "
+                "Please edit the blogger/location and set a valid HeyGen Avatar ID. "
                 "Create an avatar at https://app.heygen.com/avatars and copy its ID."
             )
             print(f">>> ERROR: {error_msg}")
             current_app.logger.error(error_msg)
             return jsonify({'error': error_msg}), 400
         
-        print(f">>> Using HeyGen avatar: {heygen_avatar_id}")
+        print(f">>> Using HeyGen avatar: {heygen_avatar_id} ({selected_location_name})")
         
         # Start async generation (returns immediately with video_id)
         try:

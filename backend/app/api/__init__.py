@@ -3,4 +3,4 @@ from flask import Blueprint
 
 bp = Blueprint('api', __name__)
 
-from app.api import bloggers, projects, media  # noqa
+from app.api import bloggers, projects, media, blogger_locations  # noqa

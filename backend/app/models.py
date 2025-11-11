@@ -15,15 +15,23 @@ class Blogger(db.Model):
     type = db.Column(db.String(50), nullable=False, default='podcaster')  # podcaster, youtuber, etc.
     
     # Images stored in S3
-    frontal_image_url = db.Column(db.String(512))  # Фронтальное фото
-    location_image_url = db.Column(db.String(512))  # Блогер в локации
+    frontal_image_url = db.Column(db.String(512))  # Фронтальное фото (для превью)
+    location_image_url = db.Column(db.String(512))  # DEPRECATED - use locations in settings
     
     # Voice settings
     tone_of_voice = db.Column(db.Text)  # Описание стиля и тона
     elevenlabs_voice_id = db.Column(db.String(255))  # Voice ID from ElevenLabs
     
     # Additional settings (JSON field - flexible, no migration needed)
-    settings = db.Column(JSON, default=lambda: {"heygen_avatar_id": "00000"})  # heygen_avatar_id, etc.
+    # Structure: {
+    #   "heygen_avatar_id": "00000",  # Default for frontal image
+    #   "locations": [
+    #     {"image_url": "s3://...", "heygen_avatar_id": "avatar123", "name": "Office"},
+    #     {"image_url": "s3://...", "heygen_avatar_id": "avatar456", "name": "Studio"}
+    #   ]
+    # }
+    settings = db.Column(JSON, default=lambda: {"heygen_avatar_id": "00000", "locations": []})
+
     
     # Metadata
     is_active = db.Column(db.Boolean, default=True)
@@ -47,19 +55,33 @@ class Blogger(db.Model):
             backend_url = current_app.config.get('BACKEND_URL', 'https://aiinflu-backend.onrender.com')
             return f"{backend_url}/api/media/proxy?url={quote(s3_url)}"
         
+        # Extract settings
         heygen_avatar_id = "00000"
+        locations = []
         if self.settings and isinstance(self.settings, dict):
             heygen_avatar_id = self.settings.get('heygen_avatar_id', '00000')
+            locations_data = self.settings.get('locations', [])
+            # Add proxy URLs for location images
+            locations = [
+                {
+                    'id': idx,
+                    'name': loc.get('name', f'Location {idx + 1}'),
+                    'image_url': get_proxy_url(loc.get('image_url')),
+                    'heygen_avatar_id': loc.get('heygen_avatar_id', '00000')
+                }
+                for idx, loc in enumerate(locations_data)
+            ]
         
         return {
             'id': str(self.id),
             'name': self.name,
             'type': self.type,
             'frontal_image_url': get_proxy_url(self.frontal_image_url),
-            'location_image_url': get_proxy_url(self.location_image_url),
+            'location_image_url': get_proxy_url(self.location_image_url),  # Deprecated
             'tone_of_voice': self.tone_of_voice,
             'elevenlabs_voice_id': self.elevenlabs_voice_id,
-            'heygen_avatar_id': heygen_avatar_id,
+            'heygen_avatar_id': heygen_avatar_id,  # Default for frontal image
+            'locations': locations,  # Array of location images with avatar_ids
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -73,6 +95,9 @@ class Project(db.Model):
     
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     blogger_id = db.Column(UUID(as_uuid=True), db.ForeignKey('bloggers.id'), nullable=False)
+    
+    # Selected location for this project (index in blogger.settings.locations)
+    location_id = db.Column(db.Integer, default=None, nullable=True)
     
     # Status and progress
     status = db.Column(db.String(20), default='draft')  # draft, in_progress, completed
@@ -131,6 +156,7 @@ class Project(db.Model):
             'id': str(self.id),
             'blogger_id': str(self.blogger_id),
             'blogger': self.blogger.to_dict() if self.blogger else None,
+            'location_id': self.location_id,
             'status': self.status,
             'current_step': self.current_step,
             'scenario_text': self.scenario_text,
