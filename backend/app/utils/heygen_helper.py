@@ -43,20 +43,23 @@ class HeyGenHelper:
             current_app.logger.info(f"Uploading talking photo to HeyGen: {image_url}")
             
             headers = {
-                'X-Api-Key': api_key,
-                'Content-Type': 'application/json'
+                'X-Api-Key': api_key
             }
             
-            # Upload photo via URL
-            upload_body = {
-                "url": image_url
+            # Download image from URL
+            img_response = requests.get(image_url, timeout=30)
+            img_response.raise_for_status()
+            
+            # Upload photo via multipart/form-data
+            files = {
+                'file': ('avatar.png', img_response.content, 'image/png')
             }
             
             response = requests.post(
-                f"{HeyGenHelper.BASE_URL}/v1/talking_photo",
+                f"{HeyGenHelper.BASE_URL}/v1/talking_photo.upload",
                 headers=headers,
-                json=upload_body,
-                timeout=30
+                files=files,
+                timeout=60
             )
             
             response.raise_for_status()
