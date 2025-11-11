@@ -79,17 +79,28 @@ class HeyGenHelper:
         try:
             current_app.logger.info(f"Uploading asset to HeyGen: {image_url}")
             
+            # Download the image first
+            current_app.logger.info("Downloading image from S3...")
+            image_response = requests.get(image_url, timeout=60)
+            image_response.raise_for_status()
+            image_data = image_response.content
+            current_app.logger.info(f"Image downloaded, size: {len(image_data)} bytes")
+            
             headers = {
                 'X-Api-Key': api_key
                 # Don't set Content-Type - let requests set it for multipart/form-data
             }
             
-            # Use form data instead of JSON
+            # Upload the actual file data
+            files = {
+                'file': ('image.png', image_data, 'image/png')
+            }
+            
             response = requests.post(
                 "https://upload.heygen.com/v1/asset",
                 headers=headers,
-                data={'url': image_url},  # Changed from json= to data=
-                timeout=60
+                files=files,
+                timeout=120  # Longer timeout for file upload
             )
             
             current_app.logger.info(f"Upload asset response status: {response.status_code}")
