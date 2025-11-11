@@ -86,21 +86,19 @@ class HeyGenHelper:
             image_data = image_response.content
             current_app.logger.info(f"Image downloaded, size: {len(image_data)} bytes")
             
+            # HeyGen expects raw binary data with Content-Type: image/png
             headers = {
+                'accept': 'application/json',
+                'Content-Type': 'image/png',
                 'X-Api-Key': api_key
-                # Don't set Content-Type - let requests set it for multipart/form-data
             }
             
-            # Upload the actual file data
-            files = {
-                'file': ('image.png', image_data, 'image/png')
-            }
-            
+            # Send raw binary data in body
             response = requests.post(
                 "https://upload.heygen.com/v1/asset",
                 headers=headers,
-                files=files,
-                timeout=120  # Longer timeout for file upload
+                data=image_data,  # Raw binary data
+                timeout=120
             )
             
             current_app.logger.info(f"Upload asset response status: {response.status_code}")
