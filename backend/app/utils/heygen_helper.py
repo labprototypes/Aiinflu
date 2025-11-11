@@ -25,6 +25,43 @@ class HeyGenHelper:
         }
     
     @staticmethod
+    def list_avatars() -> Dict:
+        """
+        Get list of available avatars from HeyGen account
+        
+        Returns:
+            Dict with avatars list
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        try:
+            current_app.logger.info("Fetching avatars list from HeyGen...")
+            
+            headers = {
+                'X-Api-Key': api_key
+            }
+            
+            # Try v2 API first
+            response = requests.get(
+                f"{HeyGenHelper.BASE_URL}/v2/avatars",
+                headers=headers,
+                timeout=30
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            current_app.logger.info(f"HeyGen avatars response: {result}")
+            
+            return result
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to fetch avatars: {str(e)}")
+            raise RuntimeError(f"Failed to fetch avatars: {str(e)}")
+    
+    @staticmethod
     def upload_talking_photo(image_url: str) -> str:
         """
         Upload a photo to HeyGen and get talking_photo_id

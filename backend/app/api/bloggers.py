@@ -122,3 +122,15 @@ def delete_blogger(blogger_id):
     db.session.commit()
     
     return '', 204
+
+
+@bp.route('/heygen/avatars', methods=['GET'])
+def get_heygen_avatars():
+    """Get list of available HeyGen avatars from user's account."""
+    from app.utils.heygen_helper import heygen_helper
+    
+    try:
+        result = heygen_helper.list_avatars()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
