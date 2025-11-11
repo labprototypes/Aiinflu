@@ -7,6 +7,7 @@ import type { Blogger, Project } from '@/types'
 import Stepper from '@/components/Stepper'
 import MaterialUploader, { UploadPreview } from '@/components/MaterialUploader'
 import type { UploadingFile } from '@/components/MaterialUploader'
+import LocationSelector from '@/components/LocationSelector'
 
 const STEPS = [
   { number: 1, title: 'Подготовка' },
@@ -21,6 +22,8 @@ export default function CreatePage() {
   const location = useLocation()
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const [selectedBlogger, setSelectedBlogger] = useState<string>('')
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null)
+  const [locationSelected, setLocationSelected] = useState(false) // Track if location was confirmed
   const [scenario, setScenario] = useState('')
   const [voiceoverText, setVoiceoverText] = useState('')
   const [isPlaying, setIsPlaying] = useState(false)
@@ -42,6 +45,11 @@ export default function CreatePage() {
         setCurrentProject(project)
         if (project.scenario_text) setScenario(project.scenario_text)
         if (project.voiceover_text) setVoiceoverText(project.voiceover_text)
+        // If location was already selected, mark it as selected
+        if (project.location_id !== undefined) {
+          setSelectedLocationId(project.location_id)
+          setLocationSelected(true)
+        }
       })
     }
   }, [location.state, currentProject])
@@ -193,6 +201,17 @@ export default function CreatePage() {
   const handleStartProject = () => {
     if (selectedBlogger) {
       createProjectMutation.mutate(selectedBlogger)
+    }
+  }
+
+  const handleLocationConfirm = async () => {
+    if (currentProject) {
+      // Save selected location to project
+      await updateScenarioMutation.mutateAsync({
+        id: currentProject.id,
+        data: { location_id: selectedLocationId },
+      })
+      setLocationSelected(true)
     }
   }
 
@@ -424,8 +443,28 @@ export default function CreatePage() {
         </div>
       )}
 
+      {/* Step 0.5: Select Location (after project created, before scenario) */}
+      {currentProject && !locationSelected && currentProject.blogger && (
+        <>
+          <LocationSelector
+            blogger={currentProject.blogger}
+            selectedLocationId={selectedLocationId}
+            onSelect={setSelectedLocationId}
+          />
+          <div className="glass-card p-6 mt-4">
+            <button
+              onClick={handleLocationConfirm}
+              disabled={selectedLocationId === undefined || updateScenarioMutation.isPending}
+              className="btn-primary w-full"
+            >
+              {updateScenarioMutation.isPending ? 'Сохранение...' : 'Продолжить к сценарию'}
+            </button>
+          </div>
+        </>
+      )}
+
       {/* Step 1: Scenario Input */}
-      {currentProject && displayStep === 1 && (
+      {currentProject && locationSelected && displayStep === 1 && (
         <div className="glass-card p-8">
           <h3 className="text-xl font-bold mb-4">Этап 1: Введите сценарий</h3>
           
@@ -458,7 +497,7 @@ export default function CreatePage() {
       )}
 
       {/* Step 2: Voiceover Text & Audio */}
-      {currentProject && displayStep === 2 && voiceoverText && (
+      {currentProject && locationSelected && displayStep === 2 && voiceoverText && (
         <div className="glass-card p-8 mb-6">
           <h3 className="text-xl font-bold mb-4">Этап 2: Текст для озвучки</h3>
           
@@ -522,7 +561,7 @@ export default function CreatePage() {
       )}
 
       {/* Next steps placeholder */}
-      {currentProject && displayStep >= 3 && (
+      {currentProject && locationSelected && displayStep >= 3 && (
         <>
           {/* Step 3: Materials Upload */}
           <div className="glass-card p-8 mb-6">

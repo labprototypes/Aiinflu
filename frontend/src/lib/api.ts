@@ -20,6 +20,15 @@ export const bloggersApi = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   delete: (id: string) => api.delete(`/bloggers/${id}`),
+  // Location management
+  addLocation: (bloggerId: string, formData: FormData) => 
+    api.post(`/bloggers/${bloggerId}/locations`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  updateLocation: (bloggerId: string, locationId: number, data: { name?: string; heygen_avatar_id?: string }) =>
+    api.put(`/bloggers/${bloggerId}/locations/${locationId}`, data),
+  deleteLocation: (bloggerId: string, locationId: number) =>
+    api.delete(`/bloggers/${bloggerId}/locations/${locationId}`),
 }
 
 // Projects API

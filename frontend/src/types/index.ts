@@ -1,9 +1,18 @@
+export interface Location {
+  id: number
+  name: string
+  image_url: string
+  heygen_avatar_id: string
+}
+
 export interface Blogger {
   id: string
   name: string
   type: string
   frontal_image_url?: string
   location_image_url?: string
+  heygen_avatar_id?: string
+  locations?: Location[]
   tone_of_voice?: string
   elevenlabs_voice_id: string
   is_active: boolean
@@ -14,6 +23,7 @@ export interface Project {
   id: string
   blogger_id: string
   blogger?: Blogger
+  location_id?: number | null
   status: 'draft' | 'in_progress' | 'completed'
   current_step: number
   scenario_text?: string

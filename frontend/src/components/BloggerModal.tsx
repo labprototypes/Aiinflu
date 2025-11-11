@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
-import type { Blogger } from '@/types'
+import type { Blogger, Location } from '@/types'
 import { bloggersApi } from '@/lib/api'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import ImageDropzone from './ImageDropzone'
+import LocationManager from './LocationManager'
 
 interface BloggerModalProps {
   blogger?: Blogger | null
@@ -18,11 +19,12 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     type: 'podcaster',
     tone_of_voice: '',
     elevenlabs_voice_id: '',
+    heygen_avatar_id: '00000',
   })
   const [frontalImage, setFrontalImage] = useState<File | null>(null)
-  const [locationImage, setLocationImage] = useState<File | null>(null)
   const [frontalPreview, setFrontalPreview] = useState<string>('')
-  const [locationPreview, setLocationPreview] = useState<string>('')
+  const [locations, setLocations] = useState<Location[]>([])
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false)
 
   // Sync form data when blogger changes or modal opens
   useEffect(() => {
@@ -32,12 +34,12 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
         type: blogger.type || 'podcaster',
         tone_of_voice: blogger.tone_of_voice || '',
         elevenlabs_voice_id: blogger.elevenlabs_voice_id || '',
+        heygen_avatar_id: blogger.heygen_avatar_id || '00000',
       })
       setFrontalPreview(blogger.frontal_image_url || '')
-      setLocationPreview(blogger.location_image_url || '')
+      setLocations(blogger.locations || [])
       // Reset file inputs when editing
       setFrontalImage(null)
-      setLocationImage(null)
     } else if (isOpen && !blogger) {
       // Reset form for creating new blogger
       setFormData({
@@ -45,11 +47,11 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
         type: 'podcaster',
         tone_of_voice: '',
         elevenlabs_voice_id: '',
+        heygen_avatar_id: '00000',
       })
       setFrontalPreview('')
-      setLocationPreview('')
+      setLocations([])
       setFrontalImage(null)
-      setLocationImage(null)
     }
   }, [blogger, isOpen])
 
@@ -66,25 +68,44 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     },
   })
 
-  const handleImageChange = (file: File, type: 'frontal' | 'location') => {
-    const preview = URL.createObjectURL(file)
-    if (type === 'frontal') {
-      setFrontalImage(file)
-      setFrontalPreview(preview)
-    } else {
-      setLocationImage(file)
-      setLocationPreview(preview)
-    }
+  const handleImageChange = (file: File) => {
+    setFrontalImage(file)
+    setFrontalPreview(URL.createObjectURL(file))
   }
 
-  const handleImageClear = (type: 'frontal' | 'location') => {
-    if (type === 'frontal') {
-      setFrontalImage(null)
-      setFrontalPreview('')
-    } else {
-      setLocationImage(null)
-      setLocationPreview('')
-    }
+  const handleImageClear = () => {
+    setFrontalImage(null)
+    setFrontalPreview('')
+  }
+
+  // Location management functions
+  const handleAddLocation = async (file: File, name: string, heygenAvatarId: string) => {
+    if (!blogger) return
+    
+    const formData = new FormData()
+    formData.append('image', file)
+    formData.append('name', name)
+    formData.append('heygen_avatar_id', heygenAvatarId)
+    
+    const response = await bloggersApi.addLocation(blogger.id, formData)
+    setLocations(response.data.locations || [])
+    queryClient.invalidateQueries({ queryKey: ['bloggers'] })
+  }
+
+  const handleUpdateLocation = async (locationId: number, data: { name?: string; heygen_avatar_id?: string }) => {
+    if (!blogger) return
+    
+    const response = await bloggersApi.updateLocation(blogger.id, locationId, data)
+    setLocations(response.data.locations || [])
+    queryClient.invalidateQueries({ queryKey: ['bloggers'] })
+  }
+
+  const handleDeleteLocation = async (locationId: number) => {
+    if (!blogger) return
+    
+    const response = await bloggersApi.deleteLocation(blogger.id, locationId)
+    setLocations(response.data.locations || [])
+    queryClient.invalidateQueries({ queryKey: ['bloggers'] })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -95,20 +116,17 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     data.append('type', formData.type)
     data.append('tone_of_voice', formData.tone_of_voice)
     data.append('elevenlabs_voice_id', formData.elevenlabs_voice_id)
+    data.append('heygen_avatar_id', formData.heygen_avatar_id)
     
     // If editing and image was cleared (preview is empty but blogger had image)
     if (blogger) {
       if (!frontalPreview && blogger.frontal_image_url) {
         data.append('clear_frontal_image', 'true')
       }
-      if (!locationPreview && blogger.location_image_url) {
-        data.append('clear_location_image', 'true')
-      }
     }
     
-    // Add new images if selected
+    // Add new image if selected
     if (frontalImage) data.append('frontal_image', frontalImage)
-    if (locationImage) data.append('location_image', locationImage)
     
     mutation.mutate(data)
   }
@@ -159,19 +177,52 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
           <ImageDropzone
             label="Фронтальное изображение"
             value={frontalPreview}
-            onChange={(file) => handleImageChange(file, 'frontal')}
-            onClear={() => handleImageClear('frontal')}
+            onChange={handleImageChange}
+            onClear={handleImageClear}
             disabled={mutation.isPending}
           />
 
-          {/* Location Image */}
-          <ImageDropzone
-            label="Блогер в локации"
-            value={locationPreview}
-            onChange={(file) => handleImageChange(file, 'location')}
-            onClear={() => handleImageClear('location')}
-            disabled={mutation.isPending}
-          />
+          {/* HeyGen Avatar ID for frontal image */}
+          <div>
+            <label className="block text-sm font-medium mb-2">HeyGen Avatar ID (для фронтального фото)</label>
+            <input
+              type="text"
+              value={formData.heygen_avatar_id}
+              onChange={(e) => setFormData({ ...formData, heygen_avatar_id: e.target.value })}
+              className="input-glass font-mono"
+              placeholder="00000"
+            />
+            <p className="text-xs text-white/40 mt-1">
+              Получите Avatar ID в{' '}
+              <a
+                href="https://app.heygen.com/avatars"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300"
+              >
+                HeyGen Dashboard
+              </a>
+            </p>
+          </div>
+
+          {/* Location Manager - only show when editing existing blogger */}
+          {blogger && (
+            <LocationManager
+              bloggerId={blogger.id}
+              locations={locations}
+              onAdd={handleAddLocation}
+              onUpdate={handleUpdateLocation}
+              onDelete={handleDeleteLocation}
+            />
+          )}
+
+          {!blogger && (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+              <p className="text-sm text-blue-200">
+                💡 Сначала создайте блогера, затем вы сможете добавить множественные локации с индивидуальными HeyGen Avatar ID.
+              </p>
+            </div>
+          )}
 
           {/* Tone of Voice */}
           <div>

@@ -25,12 +25,19 @@ def create_blogger():
     """Create new blogger."""
     data = request.form
     
+    # Prepare settings with heygen_avatar_id
+    settings = {
+        'heygen_avatar_id': data.get('heygen_avatar_id', '00000'),
+        'locations': []
+    }
+    
     # Create blogger
     blogger = Blogger(
         name=data.get('name'),
         type=data.get('type', 'podcaster'),
         tone_of_voice=data.get('tone_of_voice'),
-        elevenlabs_voice_id=data.get('elevenlabs_voice_id')
+        elevenlabs_voice_id=data.get('elevenlabs_voice_id'),
+        settings=settings
     )
     
     # Handle file uploads
