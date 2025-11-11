@@ -1,5 +1,6 @@
 """Blogger locations management API."""
 from flask import request, jsonify
+from sqlalchemy.orm.attributes import flag_modified
 from app.api import bp
 from app import db
 from app.models import Blogger
@@ -35,7 +36,8 @@ def add_location(blogger_id):
         'heygen_avatar_id': heygen_avatar_id
     })
     
-    blogger.settings = {**blogger.settings, 'locations': locations}
+    blogger.settings['locations'] = locations
+    flag_modified(blogger, 'settings')  # Tell SQLAlchemy that JSON field changed
     db.session.commit()
     
     return jsonify(blogger.to_dict()), 201
@@ -61,7 +63,8 @@ def update_location(blogger_id, location_id):
     if 'heygen_avatar_id' in data:
         locations[location_id]['heygen_avatar_id'] = data['heygen_avatar_id']
     
-    blogger.settings = {**blogger.settings, 'locations': locations}
+    blogger.settings['locations'] = locations
+    flag_modified(blogger, 'settings')  # Tell SQLAlchemy that JSON field changed
     db.session.commit()
     
     return jsonify(blogger.to_dict())
@@ -87,7 +90,8 @@ def delete_location(blogger_id, location_id):
     
     # Remove from array
     locations.pop(location_id)
-    blogger.settings = {**blogger.settings, 'locations': locations}
+    blogger.settings['locations'] = locations
+    flag_modified(blogger, 'settings')  # Tell SQLAlchemy that JSON field changed
     db.session.commit()
     
     return jsonify(blogger.to_dict())
