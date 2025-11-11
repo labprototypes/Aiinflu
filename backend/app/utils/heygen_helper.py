@@ -137,7 +137,17 @@ class HeyGenHelper:
                 current_app.logger.error(error_msg)
                 raise ValueError(error_msg)
             
-            current_app.logger.info(f"Using HeyGen avatar: {avatar_id}")
+            # Strip whitespace and validate avatar_id
+            avatar_id = avatar_id.strip() if avatar_id else None
+            if not avatar_id or avatar_id == "00000":
+                error_msg = (
+                    "Invalid avatar_id. Please configure a valid HeyGen avatar ID in blogger settings. "
+                    "Go to HeyGen dashboard (https://app.heygen.com/avatars) to create or find your avatar ID."
+                )
+                current_app.logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            current_app.logger.info(f"Using HeyGen avatar: {avatar_id} (length: {len(avatar_id)})")
             
             # Use pre-configured avatar with custom audio
             video_inputs = [{
@@ -200,7 +210,20 @@ class HeyGenHelper:
                 error_body = e.response.json()
                 error_msg = error_body.get('error', {}).get('message', str(e))
                 current_app.logger.error(f"HeyGen HTTP error: {e.response.status_code} - {error_msg}")
+                current_app.logger.error(f"Full error response: {error_body}")
+                
+                # Add helpful message for 404 avatar errors
+                if e.response.status_code == 404 and 'avatar' in error_msg.lower():
+                    helpful_msg = (
+                        f"Avatar ID '{avatar_id}' not found in your HeyGen account. "
+                        "Please verify the avatar ID at https://app.heygen.com/avatars "
+                        "and update it in the blogger's location settings."
+                    )
+                    raise RuntimeError(helpful_msg)
+                
                 raise RuntimeError(f"HeyGen API error: {error_msg}")
+            except RuntimeError:
+                raise  # Re-raise our custom errors
             except Exception:
                 current_app.logger.error(f"HeyGen HTTP error: {str(e)}")
                 raise RuntimeError(f"HeyGen API error: {str(e)}")
