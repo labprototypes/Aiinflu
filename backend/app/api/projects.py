@@ -416,16 +416,64 @@ Prompt:"""
             heygen_avatar_id = project.blogger.settings.get('heygen_avatar_id', '00000')
             selected_location_name = "Frontal image (default)"
         
-        # Validate that avatar_id is configured
+        # If avatar_id is still "00000", create Photo Avatar automatically
         if not heygen_avatar_id or heygen_avatar_id == "00000":
-            error_msg = (
-                "Avatar ID not configured. Please set a valid HeyGen avatar_id "
-                "in the location settings or blogger settings. "
-                "Get avatar IDs from HeyGen dashboard: https://app.heygen.com/avatars or use GET /api/heygen/avatars"
-            )
-            print(f">>> ERROR: {error_msg}")
-            current_app.logger.error(error_msg)
-            return jsonify({'error': error_msg}), 400
+            print(f">>> Avatar ID not configured, creating Photo Avatar automatically...")
+            current_app.logger.info("Avatar ID = 00000, creating Photo Avatar via API")
+            
+            # Determine which image to use
+            image_url_for_upload = fresh_image_url  # Default to frontal image
+            
+            if project.location_id is not None and project.blogger.settings:
+                locations = project.blogger.settings.get('locations', [])
+                if project.location_id < len(locations):
+                    location = locations[project.location_id]
+                    location_image_s3 = location.get('image_url')
+                    if location_image_s3:
+                        # Generate fresh presigned URL for location image
+                        image_url_for_upload = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
+                        print(f">>> Using location image for Photo Avatar: {selected_location_name}")
+            
+            try:
+                from app.utils.heygen_helper import HeyGenHelper
+                
+                # Step 1: Upload asset
+                print(f">>> Step 1: Uploading asset to HeyGen...")
+                image_key = HeyGenHelper.upload_asset(image_url_for_upload)
+                print(f">>> Asset uploaded, image_key: {image_key}")
+                
+                # Step 2: Create Photo Avatar Group
+                print(f">>> Step 2: Creating Photo Avatar Group...")
+                avatar_name = f"{project.blogger.name} - {selected_location_name}"
+                group_result = HeyGenHelper.create_photo_avatar_group(avatar_name, image_key)
+                heygen_avatar_id = group_result['avatar_id']
+                group_id = group_result['group_id']
+                print(f">>> Avatar created: avatar_id={heygen_avatar_id}, group_id={group_id}")
+                
+                # Step 3: Add motion for gesticulation
+                print(f">>> Step 3: Adding motion to avatar...")
+                HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
+                print(f">>> Motion added successfully")
+                
+                # Save avatar_id back to location for future use
+                if project.location_id is not None and project.blogger.settings:
+                    locations = project.blogger.settings.get('locations', [])
+                    if project.location_id < len(locations):
+                        from sqlalchemy.orm.attributes import flag_modified
+                        locations[project.location_id]['heygen_avatar_id'] = heygen_avatar_id
+                        locations[project.location_id]['heygen_group_id'] = group_id
+                        project.blogger.settings['locations'] = locations
+                        flag_modified(project.blogger, 'settings')
+                        db.session.commit()
+                        print(f">>> Saved avatar_id to location for future use")
+                
+                print(f">>> Photo Avatar created successfully: {heygen_avatar_id}")
+                
+            except Exception as photo_error:
+                error_msg = f"Failed to create Photo Avatar: {str(photo_error)}"
+                print(f">>> ERROR: {error_msg}")
+                current_app.logger.error(error_msg)
+                return jsonify({'error': error_msg}), 500
         
         print(f">>> Using HeyGen avatar: {heygen_avatar_id} ({selected_location_name})")
         print(f">>> Mode: Pre-configured Avatar ID")
