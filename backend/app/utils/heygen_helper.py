@@ -80,39 +80,37 @@ class HeyGenHelper:
             current_app.logger.info(f"Uploading asset to HeyGen: {image_url}")
             
             headers = {
-                'X-Api-Key': api_key,
-                'Content-Type': 'application/json'
+                'X-Api-Key': api_key
+                # Don't set Content-Type - let requests set it for multipart/form-data
             }
             
+            # Use form data instead of JSON
             response = requests.post(
                 "https://upload.heygen.com/v1/asset",
                 headers=headers,
-                json={'url': image_url},
+                data={'url': image_url},  # Changed from json= to data=
                 timeout=60
             )
             
             current_app.logger.info(f"Upload asset response status: {response.status_code}")
             current_app.logger.info(f"Upload asset response body: {response.text}")
             
-            # Check status before raise_for_status to see error details
-            if response.status_code != 200:
-                try:
-                    error_body = response.json()
-                    error_msg = error_body.get('error', {}).get('message', response.text)
-                    current_app.logger.error(f"HeyGen upload asset error: {error_msg}")
-                    current_app.logger.error(f"Full error response: {error_body}")
-                    raise RuntimeError(f"HeyGen upload asset error ({response.status_code}): {error_msg}")
-                except ValueError:
-                    # Response is not JSON
-                    current_app.logger.error(f"Non-JSON error response: {response.text}")
-                    raise RuntimeError(f"HeyGen upload asset error ({response.status_code}): {response.text}")
-            
+            response.raise_for_status()
             result = response.json()
+            
             current_app.logger.info(f"HeyGen upload asset response: {result}")
             
+            # Check for error in response
             if result.get('error'):
                 error_msg = result.get('error', {}).get('message', 'Unknown error')
                 raise RuntimeError(f"HeyGen upload asset error: {error_msg}")
+            
+            if result.get('code') and result.get('code') != 100:
+                # HeyGen returns error with code/message at root level
+                error_msg = result.get('message', 'Unknown error')
+                current_app.logger.error(f"HeyGen upload asset error: {error_msg}")
+                current_app.logger.error(f"Full error response: {result}")
+                raise RuntimeError(f"HeyGen upload asset error ({result.get('code')}): {error_msg}")
             
             image_key = result.get('data', {}).get('image_key')
             
@@ -122,8 +120,6 @@ class HeyGenHelper:
             current_app.logger.info(f"Asset uploaded successfully: {image_key}")
             return image_key
             
-        except RuntimeError:
-            raise  # Re-raise our custom errors
         except Exception as e:
             current_app.logger.error(f"Failed to upload asset: {str(e)}")
             raise RuntimeError(f"Asset upload failed: {str(e)}")
