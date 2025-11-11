@@ -391,11 +391,19 @@ Prompt:"""
         print(f">>> Fresh audio URL: {fresh_audio_url[:100]}...")
         print(f">>> Fresh image URL: {fresh_image_url[:100]}...")
         
+        # Get HeyGen avatar_id if configured for this blogger
+        heygen_avatar_id = project.blogger.heygen_avatar_id
+        if heygen_avatar_id:
+            print(f">>> Using pre-configured HeyGen avatar: {heygen_avatar_id}")
+        else:
+            print(f">>> No HeyGen avatar configured, will attempt photo upload")
+        
         # Start async generation (returns immediately with video_id)
         try:
             result = heygen_helper.start_avatar_generation(
                 audio_url=fresh_audio_url,
                 image_url=fresh_image_url,
+                avatar_id=heygen_avatar_id,  # Pass avatar_id from blogger
                 prompt=video_prompt,
                 audio_duration=audio_duration,
                 expression_scale=expression_scale,
