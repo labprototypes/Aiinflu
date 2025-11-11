@@ -455,6 +455,11 @@ Prompt:"""
                 HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
                 print(f">>> Motion added successfully")
                 
+                # Step 4: Wait for motion processing to complete
+                print(f">>> Step 4: Waiting for motion processing to complete...")
+                HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=120)
+                print(f">>> Avatar is ready for video generation")
+                
                 # Save avatar_id back to location for future use
                 if project.location_id is not None and project.blogger.settings:
                     locations = project.blogger.settings.get('locations', [])
