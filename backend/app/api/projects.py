@@ -5,7 +5,7 @@ from app.models import Project, Blogger
 from app.utils.gpt_helper import gpt_helper
 from app.utils.elevenlabs_helper import elevenlabs_helper
 from app.utils.s3_helper import s3_helper
-from app.utils.falai_helper import falai_helper
+from app.utils.heygen_helper import heygen_helper
 from app.utils.ffmpeg_helper import ffmpeg_helper
 from werkzeug.utils import secure_filename
 import uuid
@@ -380,10 +380,10 @@ Prompt:"""
                 print(f">>> Warning: Could not get audio duration: {e}")
                 audio_duration = None
         
-        print(f">>> Calling falai_helper.start_avatar_generation...")
-        current_app.logger.info(f"Calling falai_helper.start_avatar_generation...")
+        print(f">>> Calling heygen_helper.start_avatar_generation...")
+        current_app.logger.info(f"Calling heygen_helper.start_avatar_generation...")
         
-        # Generate fresh presigned URLs for fal.ai (old ones may have expired)
+        # Generate fresh presigned URLs for HeyGen (old ones may have expired)
         from app.utils.s3_helper import s3_helper
         fresh_audio_url = s3_helper.get_presigned_url(project.audio_url, expiration=3600)
         fresh_image_url = s3_helper.get_presigned_url(project.blogger.frontal_image_url, expiration=3600)
@@ -391,9 +391,9 @@ Prompt:"""
         print(f">>> Fresh audio URL: {fresh_audio_url[:100]}...")
         print(f">>> Fresh image URL: {fresh_image_url[:100]}...")
         
-        # Start async generation (returns immediately with request_id)
+        # Start async generation (returns immediately with video_id)
         try:
-            result = falai_helper.start_avatar_generation(
+            result = heygen_helper.start_avatar_generation(
                 audio_url=fresh_audio_url,
                 image_url=fresh_image_url,
                 prompt=video_prompt,
@@ -402,18 +402,18 @@ Prompt:"""
                 face_enhance=face_enhance
             )
         except RuntimeError as re:
-            # fal.ai responded with an error - log and return readable message
-            current_app.logger.error(f"Error in fal.ai start_avatar_generation: {str(re)}")
-            return jsonify({'error': 'fal.ai error', 'detail': str(re)}), 502
+            # HeyGen responded with an error - log and return readable message
+            current_app.logger.error(f"Error in HeyGen start_avatar_generation: {str(re)}")
+            return jsonify({'error': 'HeyGen error', 'detail': str(re)}), 502
         
-        print(f">>> fal.ai returned: {result}")
-        current_app.logger.info(f"fal.ai returned: {result}")
+        print(f">>> HeyGen returned: {result}")
+        current_app.logger.info(f"HeyGen returned: {result}")
         
-        # Save request_id for status polling
+        # Save request_id (video_id) for status polling
         project.avatar_generation_params = {
             'expression_scale': expression_scale,
             'face_enhance': face_enhance,
-            'fal_request_id': result['request_id'],
+            'heygen_video_id': result['request_id'],
             'status': 'processing'
         }
         db.session.commit()
@@ -442,12 +442,12 @@ Prompt:"""
 def check_avatar_status(project_id, request_id):
     """Check the status of avatar video generation"""
     print(f"=== CHECK AVATAR STATUS CALLED ===")
-    print(f"Request ID: {request_id}")
+    print(f"Video ID: {request_id}")
     current_app.logger.info(f"=== CHECK AVATAR STATUS CALLED ===")
-    current_app.logger.info(f"Request ID: {request_id}")
+    current_app.logger.info(f"Video ID: {request_id}")
     
     try:
-        status = falai_helper.check_status(request_id)
+        status = heygen_helper.check_status(request_id)
         print(f"Status result: {status}")
         current_app.logger.info(f"Status result: {status}")
         
