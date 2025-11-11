@@ -26,34 +26,44 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
   const [locations, setLocations] = useState<Location[]>([])
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
 
-  // Sync form data when blogger changes or modal opens
+  // Track if modal was just opened to prevent overwriting local state
+  const [modalJustOpened, setModalJustOpened] = useState(false)
+
+  // Sync form data when modal opens (but not on every render)
   useEffect(() => {
-    if (isOpen && blogger) {
-      setFormData({
-        name: blogger.name || '',
-        type: blogger.type || 'podcaster',
-        tone_of_voice: blogger.tone_of_voice || '',
-        elevenlabs_voice_id: blogger.elevenlabs_voice_id || '',
-        heygen_avatar_id: blogger.heygen_avatar_id || '00000',
-      })
-      setFrontalPreview(blogger.frontal_image_url || '')
-      setLocations(blogger.locations || [])
-      // Reset file inputs when editing
-      setFrontalImage(null)
-    } else if (isOpen && !blogger) {
-      // Reset form for creating new blogger
-      setFormData({
-        name: '',
-        type: 'podcaster',
-        tone_of_voice: '',
-        elevenlabs_voice_id: '',
-        heygen_avatar_id: '00000',
-      })
-      setFrontalPreview('')
-      setLocations([])
-      setFrontalImage(null)
+    if (isOpen) {
+      setModalJustOpened(true)
+      if (blogger) {
+        setFormData({
+          name: blogger.name || '',
+          type: blogger.type || 'podcaster',
+          tone_of_voice: blogger.tone_of_voice || '',
+          elevenlabs_voice_id: blogger.elevenlabs_voice_id || '',
+          heygen_avatar_id: blogger.heygen_avatar_id || '00000',
+        })
+        setFrontalPreview(blogger.frontal_image_url || '')
+        setLocations(blogger.locations || [])
+        // Reset file inputs when editing
+        setFrontalImage(null)
+      } else {
+        // Reset form for creating new blogger
+        setFormData({
+          name: '',
+          type: 'podcaster',
+          tone_of_voice: '',
+          elevenlabs_voice_id: '',
+          heygen_avatar_id: '00000',
+        })
+        setFrontalPreview('')
+        setLocations([])
+        setFrontalImage(null)
+      }
+    } else {
+      setModalJustOpened(false)
     }
-  }, [blogger, isOpen])
+    // Only run when modal opens/closes, not when blogger changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -88,6 +98,7 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     formData.append('heygen_avatar_id', heygenAvatarId)
     
     const response = await bloggersApi.addLocation(blogger.id, formData)
+    // Backend returns full blogger object with updated locations array
     setLocations(response.data.locations || [])
     queryClient.invalidateQueries({ queryKey: ['bloggers'] })
   }
@@ -96,6 +107,7 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     if (!blogger) return
     
     const response = await bloggersApi.updateLocation(blogger.id, locationId, data)
+    // Backend returns full blogger object with updated locations array
     setLocations(response.data.locations || [])
     queryClient.invalidateQueries({ queryKey: ['bloggers'] })
   }
@@ -104,6 +116,7 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
     if (!blogger) return
     
     const response = await bloggersApi.deleteLocation(blogger.id, locationId)
+    // Backend returns full blogger object with updated locations array
     setLocations(response.data.locations || [])
     queryClient.invalidateQueries({ queryKey: ['bloggers'] })
   }
