@@ -23,7 +23,7 @@ class Blogger(db.Model):
     elevenlabs_voice_id = db.Column(db.String(255))  # Voice ID from ElevenLabs
     
     # Additional settings (JSON field - flexible, no migration needed)
-    settings = db.Column(JSON, default=dict)  # heygen_avatar_id, etc.
+    settings = db.Column(JSON, default=lambda: {"heygen_avatar_id": "00000"})  # heygen_avatar_id, etc.
     
     # Metadata
     is_active = db.Column(db.Boolean, default=True)
@@ -47,6 +47,10 @@ class Blogger(db.Model):
             backend_url = current_app.config.get('BACKEND_URL', 'https://aiinflu-backend.onrender.com')
             return f"{backend_url}/api/media/proxy?url={quote(s3_url)}"
         
+        heygen_avatar_id = "00000"
+        if self.settings and isinstance(self.settings, dict):
+            heygen_avatar_id = self.settings.get('heygen_avatar_id', '00000')
+        
         return {
             'id': str(self.id),
             'name': self.name,
@@ -55,6 +59,7 @@ class Blogger(db.Model):
             'location_image_url': get_proxy_url(self.location_image_url),
             'tone_of_voice': self.tone_of_voice,
             'elevenlabs_voice_id': self.elevenlabs_voice_id,
+            'heygen_avatar_id': heygen_avatar_id,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

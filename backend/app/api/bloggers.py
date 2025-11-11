@@ -63,6 +63,11 @@ def update_blogger(blogger_id):
         blogger.tone_of_voice = data['tone_of_voice']
     if 'elevenlabs_voice_id' in data:
         blogger.elevenlabs_voice_id = data['elevenlabs_voice_id']
+    if 'heygen_avatar_id' in data:
+        # Update HeyGen avatar ID in settings
+        if not blogger.settings:
+            blogger.settings = {}
+        blogger.settings = {**blogger.settings, 'heygen_avatar_id': data['heygen_avatar_id']}
     if 'is_active' in data:
         blogger.is_active = data['is_active'].lower() == 'true'
     

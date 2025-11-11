@@ -392,14 +392,22 @@ Prompt:"""
         print(f">>> Fresh image URL: {fresh_image_url[:100]}...")
         
         # Get HeyGen avatar_id from blogger settings
-        heygen_avatar_id = None
+        heygen_avatar_id = "00000"
         if project.blogger.settings:
-            heygen_avatar_id = project.blogger.settings.get('heygen_avatar_id')
+            heygen_avatar_id = project.blogger.settings.get('heygen_avatar_id', '00000')
         
-        if heygen_avatar_id:
-            print(f">>> Using HeyGen avatar: {heygen_avatar_id}")
-        else:
-            print(f">>> WARNING: No HeyGen avatar configured for this blogger!")
+        # Check if avatar_id is configured
+        if not heygen_avatar_id or heygen_avatar_id == "00000":
+            error_msg = (
+                f"HeyGen avatar not configured for blogger '{project.blogger.name}'. "
+                "Please edit the blogger and set a valid HeyGen Avatar ID. "
+                "Create an avatar at https://app.heygen.com/avatars and copy its ID."
+            )
+            print(f">>> ERROR: {error_msg}")
+            current_app.logger.error(error_msg)
+            return jsonify({'error': error_msg}), 400
+        
+        print(f">>> Using HeyGen avatar: {heygen_avatar_id}")
         
         # Start async generation (returns immediately with video_id)
         try:
