@@ -25,6 +25,62 @@ class HeyGenHelper:
         }
     
     @staticmethod
+    def upload_talking_photo(image_url: str) -> str:
+        """
+        Upload a photo to HeyGen and get talking_photo_id
+        
+        Args:
+            image_url: URL to the image file
+            
+        Returns:
+            talking_photo_id for use in video generation
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        try:
+            current_app.logger.info(f"Uploading talking photo to HeyGen: {image_url}")
+            
+            headers = {
+                'X-Api-Key': api_key,
+                'Content-Type': 'application/json'
+            }
+            
+            # Upload photo via URL
+            upload_body = {
+                "url": image_url
+            }
+            
+            response = requests.post(
+                f"{HeyGenHelper.BASE_URL}/v1/talking_photo",
+                headers=headers,
+                json=upload_body,
+                timeout=30
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            current_app.logger.info(f"HeyGen upload response: {result}")
+            
+            if result.get('error'):
+                error_msg = result.get('error', {}).get('message', 'Unknown error')
+                raise RuntimeError(f"HeyGen upload error: {error_msg}")
+            
+            talking_photo_id = result.get('data', {}).get('talking_photo_id')
+            
+            if not talking_photo_id:
+                raise ValueError("No talking_photo_id in HeyGen response")
+            
+            current_app.logger.info(f"Photo uploaded successfully: {talking_photo_id}")
+            return talking_photo_id
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to upload photo: {str(e)}")
+            raise RuntimeError(f"Photo upload failed: {str(e)}")
+    
+    @staticmethod
     def start_avatar_generation(
         audio_url: str,
         image_url: str,
@@ -64,13 +120,17 @@ class HeyGenHelper:
                 'Content-Type': 'application/json'
             }
             
-            # Build request body
-            # Using talking_photo feature with custom audio
+            # First, upload the photo to get talking_photo_id
+            current_app.logger.info("Step 1: Uploading photo to HeyGen...")
+            talking_photo_id = HeyGenHelper.upload_talking_photo(image_url)
+            current_app.logger.info(f"Got talking_photo_id: {talking_photo_id}")
+            
+            # Build request body with talking_photo_id
             video_inputs = [{
                 "character": {
                     "type": "talking_photo",
-                    "talking_photo_url": image_url,
-                    "talking_photo_style": "normal"  # or "square", "circle"
+                    "talking_photo_id": talking_photo_id,
+                    "talking_style": "stable"  # or "expressive"
                 },
                 "voice": {
                     "type": "audio",
