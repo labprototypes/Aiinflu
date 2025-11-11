@@ -67,7 +67,7 @@ class HeyGenHelper:
         Upload a photo to HeyGen and get talking_photo_id
         
         Args:
-            image_url: URL to the image file
+            image_url: URL to the image file (must be publicly accessible)
             
         Returns:
             talking_photo_id for use in video generation
@@ -80,29 +80,59 @@ class HeyGenHelper:
             current_app.logger.info(f"Uploading talking photo to HeyGen: {image_url}")
             
             headers = {
-                'X-Api-Key': api_key
+                'X-Api-Key': api_key,
+                'Content-Type': 'application/json'
             }
             
-            # Download image from URL
-            img_response = requests.get(image_url, timeout=30)
-            img_response.raise_for_status()
+            # Try multiple endpoints (HeyGen API keeps changing)
+            endpoints_to_try = [
+                # v2 API - Instant Avatar (newer)
+                {
+                    'url': f"{HeyGenHelper.BASE_URL}/v2/avatars/instant",
+                    'payload': {'image_url': image_url}
+                },
+                # v1 API - Talking Photo (older)
+                {
+                    'url': f"{HeyGenHelper.BASE_URL}/v1/talking_photo",
+                    'payload': {'url': image_url}
+                },
+            ]
             
-            # Upload photo via multipart/form-data
-            files = {
-                'file': ('avatar.png', img_response.content, 'image/png')
-            }
+            last_error = None
+            result = None
             
-            response = requests.post(
-                f"{HeyGenHelper.BASE_URL}/v1/talking_photo.upload",
-                headers=headers,
-                files=files,
-                timeout=60
-            )
+            for endpoint in endpoints_to_try:
+                try:
+                    current_app.logger.info(f"Trying endpoint: {endpoint['url']}")
+                    
+                    response = requests.post(
+                        endpoint['url'],
+                        headers=headers,
+                        json=endpoint['payload'],
+                        timeout=60
+                    )
+                    
+                    current_app.logger.info(f"Response status: {response.status_code}")
+                    current_app.logger.info(f"Response body: {response.text}")
+                    
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    current_app.logger.info(f"HeyGen upload SUCCESS with {endpoint['url']}: {result}")
+                    
+                    # Success! Break the loop
+                    break
+                    
+                except requests.exceptions.HTTPError as e:
+                    last_error = e
+                    current_app.logger.warning(f"Endpoint {endpoint['url']} failed: {e}")
+                    continue  # Try next endpoint
             
-            response.raise_for_status()
-            result = response.json()
-            
-            current_app.logger.info(f"HeyGen upload response: {result}")
+            # Check if all endpoints failed
+            if result is None:
+                error_msg = f"All HeyGen endpoints failed. Last error: {last_error}"
+                current_app.logger.error(error_msg)
+                raise RuntimeError(error_msg)
             
             if result.get('error'):
                 error_msg = result.get('error', {}).get('message', 'Unknown error')

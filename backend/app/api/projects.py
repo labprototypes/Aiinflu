@@ -420,9 +420,8 @@ Prompt:"""
         use_talking_photo = False
         if not heygen_avatar_id or heygen_avatar_id == "00000":
             # Avatar ID not configured - try to upload photo to HeyGen as talking_photo
-            # This works on Free plan but includes watermark
-            print(f">>> No avatar_id configured, will upload photo to HeyGen as talking_photo (Free plan mode)")
-            current_app.logger.info(f"No avatar_id configured, uploading photo to HeyGen as talking_photo")
+            print(f">>> No avatar_id configured, will upload photo to HeyGen (trying multiple endpoints)")
+            current_app.logger.info(f"No avatar_id configured, uploading photo to HeyGen")
             
             # Determine which image to use based on location
             image_url_for_upload = fresh_image_url  # Default to frontal image
@@ -448,8 +447,14 @@ Prompt:"""
             except Exception as upload_error:
                 error_msg = (
                     f"Failed to upload photo to HeyGen: {str(upload_error)}. "
-                    "Alternative: Create an avatar manually at https://app.heygen.com/avatars "
-                    "and configure its ID in blogger settings."
+                    "\n\nThis may be because:\n"
+                    "1. Your HeyGen account doesn't have credits for Instant Avatars\n"
+                    "2. Photo upload requires HeyGen Pro plan (€84/month)\n"
+                    "3. The API endpoint has changed\n"
+                    "\n"
+                    "Alternative solutions:\n"
+                    "- Manually create avatar at https://app.heygen.com/avatars and use its ID\n"
+                    "- Or use public talking_photo_id from /api/heygen/avatars endpoint"
                 )
                 print(f">>> ERROR: {error_msg}")
                 current_app.logger.error(error_msg)
