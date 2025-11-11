@@ -199,11 +199,12 @@ class HeyGenHelper:
                 raise RuntimeError(f"HeyGen create group error ({result.get('code')}): {error_msg}")
             
             data = result.get('data', {})
-            group_id = data.get('group_id')
-            avatar_id = data.get('avatar_id')
+            # HeyGen returns 'id' for group_id, and 'id' is also the avatar_id
+            group_id = data.get('id')  # This is the group_id
+            avatar_id = data.get('id')  # This is also the avatar_id (same value)
             
-            if not group_id or not avatar_id:
-                raise ValueError("No group_id or avatar_id in HeyGen response")
+            if not group_id:
+                raise ValueError("No id in HeyGen response")
             
             current_app.logger.info(f"Avatar group created: group_id={group_id}, avatar_id={avatar_id}")
             return {
