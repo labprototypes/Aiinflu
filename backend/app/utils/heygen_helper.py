@@ -123,18 +123,32 @@ class HeyGenHelper:
                 'Content-Type': 'application/json'
             }
             
-            # Simple approach: direct photo URL + audio URL
-            # No need for avatar_id or photo upload
-            current_app.logger.info("Using direct photo + audio method")
+            # HeyGen requires pre-configured avatar_id
+            # You must create avatar in HeyGen dashboard first and use its ID
+            # For now, use a placeholder or pass avatar_id parameter
             
+            if not avatar_id:
+                error_msg = (
+                    "HeyGen requires a pre-configured avatar_id. "
+                    "Please create an avatar in HeyGen dashboard (https://app.heygen.com/avatars) "
+                    "and configure it in the blogger settings. "
+                    "Current blogger has no avatar_id configured."
+                )
+                current_app.logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            current_app.logger.info(f"Using HeyGen avatar: {avatar_id}")
+            
+            # Use pre-configured avatar with custom audio
             video_inputs = [{
                 "character": {
-                    "type": "talk",
-                    "source_url": image_url  # Direct link to photo
+                    "type": "avatar",
+                    "avatar_id": avatar_id,
+                    "avatar_style": "normal"
                 },
                 "voice": {
                     "type": "audio",
-                    "audio_url": audio_url  # Direct link to audio
+                    "audio_url": audio_url
                 }
             }]
             
