@@ -37,6 +37,7 @@ class Config:
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
     ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY')
     FAL_KEY = os.environ.get('FAL_KEY')
+    HEYGEN_API_KEY = os.environ.get('HEYGEN_API_KEY')
     TMDB_API_KEY = os.environ.get('TMDB_API_KEY')
     
     # Celery (for future async tasks)
