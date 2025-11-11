@@ -458,6 +458,11 @@ Prompt:"""
                 # Step 4: Wait for motion processing to complete
                 print(f">>> Step 4: Waiting for motion processing to complete...")
                 HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
+                print(f">>> Avatar status is 'completed', adding extra sync time...")
+                
+                # Add extra 60 seconds for HeyGen internal synchronization
+                import time
+                time.sleep(60)
                 print(f">>> Avatar is ready for video generation")
                 
                 # Save avatar_id back to location for future use
@@ -532,7 +537,12 @@ Prompt:"""
                     print(f">>> Motion added successfully")
                     
                     print(f">>> Step 4: Waiting for motion processing to complete...")
-                    HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=120)
+                    HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
+                    print(f">>> Avatar status is 'completed', adding extra sync time...")
+                    
+                    # Add extra 60 seconds for HeyGen internal synchronization
+                    import time
+                    time.sleep(60)
                     print(f">>> Avatar is ready for video generation")
                     
                     # Save new avatar_id to location
