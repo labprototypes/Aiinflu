@@ -253,8 +253,9 @@ class HeyGenHelper:
             }
             
             # Group might not be immediately available, retry a few times
-            max_retries = 10
-            retry_delay = 5
+            # Training can take 2-3 minutes, so we need more retries
+            max_retries = 30  # 30 attempts * 10s = 5 minutes max
+            retry_delay = 10  # 10 seconds between checks
             
             for attempt in range(max_retries):
                 try:
@@ -271,19 +272,32 @@ class HeyGenHelper:
                     
                     if response.status_code == 200:
                         result = response.json()
-                        groups = result.get('data', {}).get('avatar_groups', [])
+                        # CORRECT field name from API: avatar_group_list (not avatar_groups)
+                        groups = result.get('data', {}).get('avatar_group_list', [])
                         
                         current_app.logger.info(f"Found {len(groups)} total groups")
                         
                         # Find our group by ID
                         our_group = None
                         for group in groups:
-                            if group.get('avatar_group_id') == group_id or group.get('id') == group_id:
+                            if group.get('id') == group_id:
                                 our_group = group
                                 break
                         
                         if our_group:
                             current_app.logger.info(f"Found our group: {our_group}")
+                            
+                            # Check train_status - must be "completed" not "empty"
+                            train_status = our_group.get('train_status', '')
+                            current_app.logger.info(f"Group train_status: {train_status}")
+                            
+                            if train_status != 'completed':
+                                if attempt < max_retries - 1:
+                                    current_app.logger.warning(f"Group train_status is '{train_status}', waiting {retry_delay}s for training to complete...")
+                                    time.sleep(retry_delay)
+                                    continue
+                                else:
+                                    raise RuntimeError(f"Group train_status is still '{train_status}' after {max_retries} attempts. May need more time.")
                             
                             # Get avatars from this specific group using correct endpoint
                             avatars_response = requests.get(
@@ -291,6 +305,9 @@ class HeyGenHelper:
                                 headers=headers,
                                 timeout=30
                             )
+                            
+                            current_app.logger.info(f"Get avatars response status: {avatars_response.status_code}")
+                            current_app.logger.info(f"Get avatars response body: {avatars_response.text}")
                             
                             if avatars_response.status_code == 200:
                                 avatars_result = avatars_response.json()
@@ -301,11 +318,18 @@ class HeyGenHelper:
                                 if avatars:
                                     # Get talking_photo_id from first avatar
                                     avatar = avatars[0]
+                                    current_app.logger.info(f"Avatar data: {avatar}")
                                     talking_photo_id = avatar.get('talking_photo_id') or avatar.get('avatar_id')
                                     
                                     if talking_photo_id:
                                         current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
                                         return talking_photo_id
+                                    else:
+                                        current_app.logger.error("Avatar exists but has no talking_photo_id or avatar_id")
+                                else:
+                                    current_app.logger.error("Avatars list is empty")
+                            else:
+                                current_app.logger.error(f"Failed to get avatars: {avatars_response.status_code}")
                         
                         if attempt < max_retries - 1:
                             current_app.logger.warning(f"Group not ready yet, waiting {retry_delay}s before retry...")
