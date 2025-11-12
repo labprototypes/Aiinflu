@@ -253,27 +253,49 @@ class HeyGenHelper:
             }
             
             # Group might not be immediately available, retry a few times
-            max_retries = 5
-            retry_delay = 3
+            max_retries = 10
+            retry_delay = 5
             
             for attempt in range(max_retries):
                 try:
                     current_app.logger.info(f"Attempt {attempt + 1}/{max_retries} to get group info...")
                     
-                    # List all avatars in the group
+                    # List ALL avatar groups and find ours
                     response = requests.get(
-                        f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_group/{group_id}",
+                        f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_groups",
                         headers=headers,
                         timeout=30
                     )
                     
-                    current_app.logger.info(f"Get group response status: {response.status_code}")
-                    current_app.logger.info(f"Get group response body: {response.text}")
+                    current_app.logger.info(f"List groups response status: {response.status_code}")
                     
-                    if response.status_code == 404 and attempt < max_retries - 1:
-                        current_app.logger.warning(f"Group not found yet, waiting {retry_delay}s before retry...")
-                        time.sleep(retry_delay)
-                        continue
+                    if response.status_code == 200:
+                        result = response.json()
+                        groups = result.get('data', {}).get('avatar_groups', [])
+                        
+                        current_app.logger.info(f"Found {len(groups)} total groups")
+                        
+                        # Find our group by ID
+                        our_group = None
+                        for group in groups:
+                            if group.get('avatar_group_id') == group_id:
+                                our_group = group
+                                break
+                        
+                        if our_group:
+                            current_app.logger.info(f"Found our group: {our_group}")
+                            avatars = our_group.get('avatars', [])
+                            
+                            if avatars:
+                                talking_photo_id = avatars[0].get('talking_photo_id')
+                                if talking_photo_id:
+                                    current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
+                                    return talking_photo_id
+                        
+                        if attempt < max_retries - 1:
+                            current_app.logger.warning(f"Group not ready yet, waiting {retry_delay}s before retry...")
+                            time.sleep(retry_delay)
+                            continue
                     
                     break  # Success or final attempt
                     
@@ -284,6 +306,15 @@ class HeyGenHelper:
                         continue
                     raise
             
+            # If we got here, get the response one more time for error handling
+            response = requests.get(
+                f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_groups",
+                headers=headers,
+                timeout=30
+            )
+            
+            current_app.logger.error(f"Final response: {response.text}")
+            
             response.raise_for_status()
             result = response.json()
             
@@ -291,20 +322,8 @@ class HeyGenHelper:
                 error_msg = result.get('error', {}).get('message', 'Unknown error')
                 raise RuntimeError(f"HeyGen get group error: {error_msg}")
             
-            data = result.get('data', {})
-            avatars = data.get('avatars', [])
-            
-            if not avatars:
-                raise ValueError(f"No avatars found in group {group_id}")
-            
-            # Get the first avatar's talking_photo_id
-            talking_photo_id = avatars[0].get('talking_photo_id')
-            
-            if not talking_photo_id:
-                raise ValueError(f"No talking_photo_id found in group {group_id}")
-            
-            current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
-            return talking_photo_id
+            # If we got here, group was not found after all retries
+            raise ValueError(f"Group {group_id} not found after {max_retries} attempts over {max_retries * retry_delay}s")
             
         except Exception as e:
             current_app.logger.error(f"Failed to get talking_photo_id: {str(e)}")
