@@ -460,9 +460,9 @@ Prompt:"""
                 HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
                 print(f">>> Avatar status is 'completed', adding extra sync time...")
                 
-                # Add extra 60 seconds for HeyGen internal synchronization
+                # Add extra 180 seconds for HeyGen internal synchronization
                 import time
-                time.sleep(60)
+                time.sleep(180)
                 print(f">>> Avatar is ready for video generation")
                 
                 # Save avatar_id back to location for future use
@@ -540,9 +540,9 @@ Prompt:"""
                     HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
                     print(f">>> Avatar status is 'completed', adding extra sync time...")
                     
-                    # Add extra 60 seconds for HeyGen internal synchronization
+                    # Add extra 180 seconds for HeyGen internal synchronization
                     import time
-                    time.sleep(60)
+                    time.sleep(180)
                     print(f">>> Avatar is ready for video generation")
                     
                     # Save new avatar_id to location
