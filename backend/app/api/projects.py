@@ -462,18 +462,27 @@ Prompt:"""
                 
                 # Step 5: Wait for motion training to complete
                 print(f">>> Step 5: Waiting for motion training to complete...")
-                HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
+                talking_photo_id_from_status = HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
                 print(f">>> Motion training completed!")
                 
                 # Step 6: Get talking_photo_id from trained avatar
-                print(f">>> Step 6: Getting talking_photo_id from trained avatar...")
-                talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
-                print(f">>> talking_photo_id: {talking_photo_id}")
+                print(f">>> Step 6: Getting talking_photo_id...")
+                
+                # Try to get from status response first
+                if talking_photo_id_from_status:
+                    talking_photo_id = talking_photo_id_from_status
+                    print(f">>> Got talking_photo_id from status: {talking_photo_id}")
+                else:
+                    # Fallback: wait a bit for sync, then query group
+                    print(f">>> talking_photo_id not in status, waiting 30s for HeyGen sync...")
+                    import time
+                    time.sleep(30)
+                    talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+                    print(f">>> Got talking_photo_id from group: {talking_photo_id}")
                 
                 # Add extra sync time for HeyGen internal synchronization
-                import time
-                print(f">>> Adding 60s sync delay for HeyGen backend...")
-                time.sleep(60)
+                print(f">>> Adding 30s final sync delay...")
+                time.sleep(30)
                 print(f">>> Avatar is ready for video generation")
                 
                 # Save talking_photo_id back to location for future use
@@ -554,17 +563,26 @@ Prompt:"""
                     print(f">>> Motion added successfully, training started...")
                     
                     print(f">>> Step 5: Waiting for motion training to complete...")
-                    HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
+                    talking_photo_id_from_status = HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
                     print(f">>> Motion training completed!")
                     
-                    print(f">>> Step 6: Getting talking_photo_id from trained avatar...")
-                    talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
-                    print(f">>> talking_photo_id: {talking_photo_id}")
+                    print(f">>> Step 6: Getting talking_photo_id...")
+                    
+                    # Try to get from status response first
+                    if talking_photo_id_from_status:
+                        talking_photo_id = talking_photo_id_from_status
+                        print(f">>> Got talking_photo_id from status: {talking_photo_id}")
+                    else:
+                        # Fallback: wait a bit for sync, then query group
+                        print(f">>> talking_photo_id not in status, waiting 30s for HeyGen sync...")
+                        import time
+                        time.sleep(30)
+                        talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+                        print(f">>> Got talking_photo_id from group: {talking_photo_id}")
                     
                     # Add extra sync time for HeyGen internal synchronization
-                    import time
-                    print(f">>> Adding 60s sync delay for HeyGen backend...")
-                    time.sleep(60)
+                    print(f">>> Adding 30s final sync delay...")
+                    time.sleep(30)
                     print(f">>> Avatar is ready for video generation")
                     
                     # Save new talking_photo_id to location
