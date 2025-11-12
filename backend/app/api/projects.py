@@ -531,20 +531,24 @@ Prompt:"""
                     group_result = HeyGenHelper.create_photo_avatar_group(avatar_name, image_key)
                     heygen_avatar_id = group_result['avatar_id']
                     group_id = group_result['group_id']
-                    talking_photo_id = group_result['talking_photo_id']
-                    print(f">>> Avatar created: avatar_id={heygen_avatar_id}, group_id={group_id}, talking_photo_id={talking_photo_id}")
+                    print(f">>> Avatar group created: avatar_id={heygen_avatar_id}, group_id={group_id}")
                     
                     print(f">>> Step 3: Adding motion to avatar...")
                     HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
-                    print(f">>> Motion added successfully")
+                    print(f">>> Motion added successfully, training started...")
                     
-                    print(f">>> Step 4: Waiting for motion processing to complete...")
+                    print(f">>> Step 4: Waiting for training to complete...")
                     HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
-                    print(f">>> Avatar status is 'completed', adding extra sync time...")
+                    print(f">>> Avatar training completed!")
                     
-                    # Add extra 180 seconds for HeyGen internal synchronization
+                    print(f">>> Step 5: Getting talking_photo_id from trained avatar...")
+                    talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+                    print(f">>> talking_photo_id: {talking_photo_id}")
+                    
+                    # Add extra sync time for HeyGen internal synchronization
                     import time
-                    time.sleep(180)
+                    print(f">>> Adding 60s sync delay for HeyGen backend...")
+                    time.sleep(60)
                     print(f">>> Avatar is ready for video generation")
                     
                     # Save new talking_photo_id to location
@@ -559,13 +563,13 @@ Prompt:"""
                             db.session.commit()
                             print(f">>> Saved new avatar_id to location")
                     
-                    print(f">>> Photo Avatar recreated successfully: {heygen_avatar_id}")
+                    print(f">>> Photo Avatar recreated successfully with talking_photo_id: {talking_photo_id}")
                     
-                    # Retry video generation with new avatar_id
+                    # Retry video generation with talking_photo_id (not avatar_id!)
                     result = heygen_helper.start_avatar_generation(
                         audio_url=fresh_audio_url,
                         image_url=fresh_image_url,
-                        avatar_id=heygen_avatar_id,
+                        avatar_id=talking_photo_id,  # Use talking_photo_id for video generation
                         prompt=video_prompt,
                         audio_duration=audio_duration,
                         expression_scale=expression_scale,

@@ -208,21 +208,14 @@ class HeyGenHelper:
             
             current_app.logger.info(f"Avatar group created: group_id={group_id}, avatar_id={avatar_id}")
             
-            # Wait for avatar to be ready (processing is asynchronous)
-            current_app.logger.info("Waiting for avatar to complete processing...")
-            talking_photo_id = HeyGenHelper._wait_for_avatar_ready(avatar_id)
-            
-            # If talking_photo_id not in status response, get it from group
-            if not talking_photo_id:
-                current_app.logger.info("talking_photo_id not found in status, getting from group...")
-                talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
-            
-            current_app.logger.info(f"Final talking_photo_id: {talking_photo_id}")
+            # DON'T get talking_photo_id here - motion hasn't been added yet!
+            # Motion must be added first, then wait for training to complete
+            current_app.logger.info("Group created successfully. Add motion and wait for training before getting talking_photo_id.")
             
             return {
                 'group_id': group_id,
                 'avatar_id': avatar_id,
-                'talking_photo_id': talking_photo_id
+                'talking_photo_id': None  # Will be retrieved after add_motion and training
             }
             
         except Exception as e:
