@@ -448,7 +448,8 @@ Prompt:"""
                 group_result = HeyGenHelper.create_photo_avatar_group(avatar_name, image_key)
                 heygen_avatar_id = group_result['avatar_id']
                 group_id = group_result['group_id']
-                print(f">>> Avatar created: avatar_id={heygen_avatar_id}, group_id={group_id}")
+                talking_photo_id = group_result['talking_photo_id']
+                print(f">>> Avatar created: avatar_id={heygen_avatar_id}, group_id={group_id}, talking_photo_id={talking_photo_id}")
                 
                 # Step 3: Add motion for gesticulation
                 print(f">>> Step 3: Adding motion to avatar...")
@@ -465,12 +466,12 @@ Prompt:"""
                 time.sleep(180)
                 print(f">>> Avatar is ready for video generation")
                 
-                # Save avatar_id back to location for future use
+                # Save talking_photo_id back to location for future use
                 if project.location_id is not None and project.blogger.settings:
                     locations = project.blogger.settings.get('locations', [])
                     if project.location_id < len(locations):
                         from sqlalchemy.orm.attributes import flag_modified
-                        locations[project.location_id]['heygen_avatar_id'] = heygen_avatar_id
+                        locations[project.location_id]['heygen_avatar_id'] = talking_photo_id  # Save talking_photo_id as heygen_avatar_id
                         locations[project.location_id]['heygen_group_id'] = group_id
                         project.blogger.settings['locations'] = locations
                         flag_modified(project.blogger, 'settings')
@@ -530,7 +531,8 @@ Prompt:"""
                     group_result = HeyGenHelper.create_photo_avatar_group(avatar_name, image_key)
                     heygen_avatar_id = group_result['avatar_id']
                     group_id = group_result['group_id']
-                    print(f">>> Avatar created: avatar_id={heygen_avatar_id}, group_id={group_id}")
+                    talking_photo_id = group_result['talking_photo_id']
+                    print(f">>> Avatar created: avatar_id={heygen_avatar_id}, group_id={group_id}, talking_photo_id={talking_photo_id}")
                     
                     print(f">>> Step 3: Adding motion to avatar...")
                     HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
@@ -545,12 +547,12 @@ Prompt:"""
                     time.sleep(180)
                     print(f">>> Avatar is ready for video generation")
                     
-                    # Save new avatar_id to location
+                    # Save new talking_photo_id to location
                     if project.location_id is not None and project.blogger.settings:
                         locations = project.blogger.settings.get('locations', [])
                         if project.location_id < len(locations):
                             from sqlalchemy.orm.attributes import flag_modified
-                            locations[project.location_id]['heygen_avatar_id'] = heygen_avatar_id
+                            locations[project.location_id]['heygen_avatar_id'] = talking_photo_id  # Save talking_photo_id as heygen_avatar_id
                             locations[project.location_id]['heygen_group_id'] = group_id
                             project.blogger.settings['locations'] = locations
                             flag_modified(project.blogger, 'settings')

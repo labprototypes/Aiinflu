@@ -212,14 +212,78 @@ class HeyGenHelper:
             current_app.logger.info("Waiting for avatar to complete processing...")
             HeyGenHelper._wait_for_avatar_ready(avatar_id)
             
+            # Get talking_photo_id for video generation
+            current_app.logger.info("Getting talking_photo_id...")
+            talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+            
             return {
                 'group_id': group_id,
-                'avatar_id': avatar_id
+                'avatar_id': avatar_id,
+                'talking_photo_id': talking_photo_id
             }
             
         except Exception as e:
             current_app.logger.error(f"Failed to create avatar group: {str(e)}")
             raise RuntimeError(f"Avatar group creation failed: {str(e)}")
+    
+    @staticmethod
+    def get_talking_photo_id_from_group(group_id: str) -> str:
+        """
+        Get talking_photo_id from an avatar group
+        
+        Args:
+            group_id: Avatar group ID
+            
+        Returns:
+            talking_photo_id for video generation
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        try:
+            current_app.logger.info(f"Getting talking_photo_id from group: {group_id}")
+            
+            headers = {
+                'accept': 'application/json',
+                'x-api-key': api_key
+            }
+            
+            # List all avatars in the group
+            response = requests.get(
+                f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_group/{group_id}",
+                headers=headers,
+                timeout=30
+            )
+            
+            current_app.logger.info(f"Get group response status: {response.status_code}")
+            current_app.logger.info(f"Get group response body: {response.text}")
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get('error'):
+                error_msg = result.get('error', {}).get('message', 'Unknown error')
+                raise RuntimeError(f"HeyGen get group error: {error_msg}")
+            
+            data = result.get('data', {})
+            avatars = data.get('avatars', [])
+            
+            if not avatars:
+                raise ValueError(f"No avatars found in group {group_id}")
+            
+            # Get the first avatar's talking_photo_id
+            talking_photo_id = avatars[0].get('talking_photo_id')
+            
+            if not talking_photo_id:
+                raise ValueError(f"No talking_photo_id found in group {group_id}")
+            
+            current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
+            return talking_photo_id
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to get talking_photo_id: {str(e)}")
+            raise RuntimeError(f"Failed to get talking_photo_id: {str(e)}")
     
     @staticmethod
     def _wait_for_avatar_ready(avatar_id: str, max_wait: int = 60, poll_interval: int = 3):
@@ -510,14 +574,14 @@ class HeyGenHelper:
                 current_app.logger.error(error_msg)
                 raise ValueError(error_msg)
             
-            current_app.logger.info(f"Using HeyGen avatar/talking_photo: {avatar_id} (length: {len(avatar_id)})")
+            current_app.logger.info(f"Using HeyGen talking_photo_id: {avatar_id} (length: {len(avatar_id)})")
             
-            # Use pre-configured avatar_id or talking_photo_id
+            # Use talking_photo_id with type "talking_photo" for Photo Avatar
             video_inputs = [{
                 "character": {
-                    "type": "avatar",
-                    "avatar_id": avatar_id,
-                    "avatar_style": "normal"
+                    "type": "talking_photo",
+                    "talking_photo_id": avatar_id,
+                    "talking_photo_style": "normal"
                 },
                 "voice": {
                     "type": "audio",
