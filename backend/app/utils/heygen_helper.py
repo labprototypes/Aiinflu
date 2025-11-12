@@ -210,11 +210,14 @@ class HeyGenHelper:
             
             # Wait for avatar to be ready (processing is asynchronous)
             current_app.logger.info("Waiting for avatar to complete processing...")
-            HeyGenHelper._wait_for_avatar_ready(avatar_id)
+            talking_photo_id = HeyGenHelper._wait_for_avatar_ready(avatar_id)
             
-            # Get talking_photo_id for video generation
-            current_app.logger.info("Getting talking_photo_id...")
-            talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+            # If talking_photo_id not in status response, get it from group
+            if not talking_photo_id:
+                current_app.logger.info("talking_photo_id not found in status, getting from group...")
+                talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+            
+            current_app.logger.info(f"Final talking_photo_id: {talking_photo_id}")
             
             return {
                 'group_id': group_id,
@@ -286,7 +289,7 @@ class HeyGenHelper:
             raise RuntimeError(f"Failed to get talking_photo_id: {str(e)}")
     
     @staticmethod
-    def _wait_for_avatar_ready(avatar_id: str, max_wait: int = 60, poll_interval: int = 3):
+    def _wait_for_avatar_ready(avatar_id: str, max_wait: int = 60, poll_interval: int = 3) -> Optional[str]:
         """
         Poll avatar status until it's ready for use
         
@@ -294,6 +297,9 @@ class HeyGenHelper:
             avatar_id: Avatar ID to check
             max_wait: Maximum seconds to wait (default 60)
             poll_interval: Seconds between polls (default 3)
+            
+        Returns:
+            talking_photo_id if found, None otherwise
         """
         api_key = current_app.config.get('HEYGEN_API_KEY')
         if not api_key:
@@ -328,15 +334,18 @@ class HeyGenHelper:
                     result = response.json()
                     data = result.get('data', {})
                     status = data.get('status', 'unknown')
+                    talking_photo_id = data.get('talking_photo_id')
                     
                     current_app.logger.info(f"Avatar status: {status} (waited {elapsed:.1f}s)")
+                    if talking_photo_id:
+                        current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
                     
                     if status == 'completed':
                         current_app.logger.info(f"Avatar ready after {elapsed:.1f}s")
                         # Add extra 5 seconds buffer to ensure HeyGen internal sync
                         current_app.logger.info("Adding 5s buffer for HeyGen internal sync...")
                         time.sleep(5)
-                        return
+                        return talking_photo_id
                     elif status == 'failed':
                         raise RuntimeError(f"Avatar processing failed: {data.get('error', 'Unknown error')}")
                 
