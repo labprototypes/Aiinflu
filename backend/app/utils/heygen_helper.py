@@ -252,15 +252,37 @@ class HeyGenHelper:
                 'x-api-key': api_key
             }
             
-            # List all avatars in the group
-            response = requests.get(
-                f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_group/{group_id}",
-                headers=headers,
-                timeout=30
-            )
+            # Group might not be immediately available, retry a few times
+            max_retries = 5
+            retry_delay = 3
             
-            current_app.logger.info(f"Get group response status: {response.status_code}")
-            current_app.logger.info(f"Get group response body: {response.text}")
+            for attempt in range(max_retries):
+                try:
+                    current_app.logger.info(f"Attempt {attempt + 1}/{max_retries} to get group info...")
+                    
+                    # List all avatars in the group
+                    response = requests.get(
+                        f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_group/{group_id}",
+                        headers=headers,
+                        timeout=30
+                    )
+                    
+                    current_app.logger.info(f"Get group response status: {response.status_code}")
+                    current_app.logger.info(f"Get group response body: {response.text}")
+                    
+                    if response.status_code == 404 and attempt < max_retries - 1:
+                        current_app.logger.warning(f"Group not found yet, waiting {retry_delay}s before retry...")
+                        time.sleep(retry_delay)
+                        continue
+                    
+                    break  # Success or final attempt
+                    
+                except requests.exceptions.RequestException as e:
+                    if attempt < max_retries - 1:
+                        current_app.logger.warning(f"Request failed: {e}, retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        continue
+                    raise
             
             response.raise_for_status()
             result = response.json()
@@ -317,7 +339,7 @@ class HeyGenHelper:
             
             if elapsed > max_wait:
                 current_app.logger.warning(f"Avatar {avatar_id} not ready after {max_wait}s, continuing anyway...")
-                return  # Continue without error - might work
+                return None  # Continue without error - might work
             
             try:
                 # Check avatar status
@@ -354,6 +376,9 @@ class HeyGenHelper:
             
             # Wait before next poll
             time.sleep(poll_interval)
+        
+        # Should not reach here, but just in case
+        return None
     
     @staticmethod
     def add_motion_to_avatar(avatar_id: str, motion_type: str = 'veo2') -> Dict:
