@@ -245,10 +245,10 @@ class HeyGenHelper:
                 'x-api-key': api_key
             }
             
-            # Group might not be immediately available, retry a few times
-            # Training can take 2-3 minutes, so we need more retries
-            max_retries = 30  # 30 attempts * 10s = 5 minutes max
-            retry_delay = 10  # 10 seconds between checks
+            # Avatar should already be ready after _wait_for_avatar_ready()
+            # Just need to fetch talking_photo_id from the group
+            max_retries = 5  # Reduced from 30 - just retry on network errors
+            retry_delay = 3  # Reduced from 10s
             
             for attempt in range(max_retries):
                 try:
@@ -280,17 +280,11 @@ class HeyGenHelper:
                         if our_group:
                             current_app.logger.info(f"Found our group: {our_group}")
                             
-                            # Check train_status - must be "completed" not "empty"
+                            # NOTE: train_status shows GROUP status, not motion training status
+                            # Motion training status is checked via _wait_for_avatar_ready()
+                            # So we can skip train_status check here and go straight to getting avatars
                             train_status = our_group.get('train_status', '')
-                            current_app.logger.info(f"Group train_status: {train_status}")
-                            
-                            if train_status != 'completed':
-                                if attempt < max_retries - 1:
-                                    current_app.logger.warning(f"Group train_status is '{train_status}', waiting {retry_delay}s for training to complete...")
-                                    time.sleep(retry_delay)
-                                    continue
-                                else:
-                                    raise RuntimeError(f"Group train_status is still '{train_status}' after {max_retries} attempts. May need more time.")
+                            current_app.logger.info(f"Group train_status: {train_status} (informational only)")
                             
                             # Get avatars from this specific group using correct endpoint
                             avatars_response = requests.get(
