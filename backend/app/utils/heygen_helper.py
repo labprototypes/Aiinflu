@@ -286,9 +286,10 @@ class HeyGenHelper:
                             train_status = our_group.get('train_status', '')
                             current_app.logger.info(f"Group train_status: {train_status} (informational only)")
                             
-                            # Get avatars from this specific group using correct endpoint
+                            # Get avatars from this specific group using CORRECT endpoint from docs
+                            # https://docs.heygen.com/reference/list-all-avatars-in-one-avatar-group
                             avatars_response = requests.get(
-                                f"{HeyGenHelper.BASE_URL}/v2/avatar_group/{group_id}/avatars",
+                                f"{HeyGenHelper.BASE_URL}/v2/avatars.list?avatar_group_id={group_id}",
                                 headers=headers,
                                 timeout=30
                             )
@@ -298,7 +299,8 @@ class HeyGenHelper:
                             
                             if avatars_response.status_code == 200:
                                 avatars_result = avatars_response.json()
-                                avatars = avatars_result.get('data', {}).get('avatars', [])
+                                # API returns avatar_list, not avatars
+                                avatars = avatars_result.get('data', {}).get('avatar_list', [])
                                 
                                 current_app.logger.info(f"Found {len(avatars)} avatars in group")
                                 
