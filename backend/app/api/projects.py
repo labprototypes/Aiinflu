@@ -533,15 +533,19 @@ Prompt:"""
                     group_id = group_result['group_id']
                     print(f">>> Avatar group created: avatar_id={heygen_avatar_id}, group_id={group_id}")
                     
-                    print(f">>> Step 3: Adding motion to avatar...")
+                    print(f">>> Step 3: Waiting for avatar to be ready before adding motion...")
+                    HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=120)
+                    print(f">>> Avatar is ready, now adding motion...")
+                    
+                    print(f">>> Step 4: Adding motion to avatar...")
                     HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
                     print(f">>> Motion added successfully, training started...")
                     
-                    print(f">>> Step 4: Waiting for training to complete...")
+                    print(f">>> Step 5: Waiting for motion training to complete...")
                     HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
-                    print(f">>> Avatar training completed!")
+                    print(f">>> Motion training completed!")
                     
-                    print(f">>> Step 5: Getting talking_photo_id from trained avatar...")
+                    print(f">>> Step 6: Getting talking_photo_id from trained avatar...")
                     talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
                     print(f">>> talking_photo_id: {talking_photo_id}")
                     

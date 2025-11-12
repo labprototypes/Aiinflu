@@ -456,13 +456,15 @@ class HeyGenHelper:
                 'x-api-key': api_key
             }
             
-            # API expects 'id' and 'motion_type', not 'avatar_id' and 'type'
+            # According to docs, only motion_type is in the request body
+            # But we also need to specify which avatar - try with 'id' parameter
             request_body = {
                 'id': avatar_id,
                 'motion_type': motion_type
             }
             
             current_app.logger.info(f"Add motion request body: {request_body}")
+            current_app.logger.info(f"Attempting to add motion to avatar: {avatar_id}")
             
             response = requests.post(
                 f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/add_motion",
