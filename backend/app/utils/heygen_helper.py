@@ -245,10 +245,10 @@ class HeyGenHelper:
                 'x-api-key': api_key
             }
             
-            # Avatar should already be ready after _wait_for_avatar_ready()
-            # Just need to fetch talking_photo_id from the group
-            max_retries = 5  # Reduced from 30 - just retry on network errors
-            retry_delay = 3  # Reduced from 10s
+            # Motion training can take 2-3 minutes after add_motion
+            # Need enough retries to wait for talking_photo_id to appear
+            max_retries = 60  # 60 attempts * 6s = 6 minutes max
+            retry_delay = 6  # 6 seconds between checks
             
             for attempt in range(max_retries):
                 try:
@@ -317,9 +317,10 @@ class HeyGenHelper:
                                         current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
                                         return talking_photo_id
                                     else:
-                                        current_app.logger.error("Avatar exists but has no talking_photo_id or avatar_id")
+                                        # Avatar exists but talking_photo_id not ready yet - keep waiting
+                                        current_app.logger.warning(f"Avatar exists but talking_photo_id not ready yet (attempt {attempt + 1}/{max_retries})")
                                 else:
-                                    current_app.logger.error("Avatars list is empty")
+                                    current_app.logger.warning(f"Avatars list is empty (attempt {attempt + 1}/{max_retries})")
                             else:
                                 current_app.logger.error(f"Failed to get avatars: {avatars_response.status_code}")
                         
@@ -353,8 +354,9 @@ class HeyGenHelper:
                 error_msg = result.get('error', {}).get('message', 'Unknown error')
                 raise RuntimeError(f"HeyGen get group error: {error_msg}")
             
-            # If we got here, group was not found after all retries
-            raise ValueError(f"Group {group_id} not found after {max_retries} attempts over {max_retries * retry_delay}s")
+            # If we got here, talking_photo_id still not available after all retries
+            total_wait_time = max_retries * retry_delay
+            raise ValueError(f"talking_photo_id not available after {max_retries} attempts over {total_wait_time}s. Motion training may still be in progress.")
             
         except Exception as e:
             current_app.logger.error(f"Failed to get talking_photo_id: {str(e)}")
