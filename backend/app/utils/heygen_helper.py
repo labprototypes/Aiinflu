@@ -260,9 +260,9 @@ class HeyGenHelper:
                 try:
                     current_app.logger.info(f"Attempt {attempt + 1}/{max_retries} to get group info...")
                     
-                    # List ALL avatar groups and find ours
+                    # List ALL avatar groups and find ours (correct endpoint)
                     response = requests.get(
-                        f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_groups",
+                        f"{HeyGenHelper.BASE_URL}/v2/avatar_group.list?include_public=false",
                         headers=headers,
                         timeout=30
                     )
@@ -278,19 +278,34 @@ class HeyGenHelper:
                         # Find our group by ID
                         our_group = None
                         for group in groups:
-                            if group.get('avatar_group_id') == group_id:
+                            if group.get('avatar_group_id') == group_id or group.get('id') == group_id:
                                 our_group = group
                                 break
                         
                         if our_group:
                             current_app.logger.info(f"Found our group: {our_group}")
-                            avatars = our_group.get('avatars', [])
                             
-                            if avatars:
-                                talking_photo_id = avatars[0].get('talking_photo_id')
-                                if talking_photo_id:
-                                    current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
-                                    return talking_photo_id
+                            # Get avatars from this specific group using correct endpoint
+                            avatars_response = requests.get(
+                                f"{HeyGenHelper.BASE_URL}/v2/avatar_group/{group_id}/avatars",
+                                headers=headers,
+                                timeout=30
+                            )
+                            
+                            if avatars_response.status_code == 200:
+                                avatars_result = avatars_response.json()
+                                avatars = avatars_result.get('data', {}).get('avatars', [])
+                                
+                                current_app.logger.info(f"Found {len(avatars)} avatars in group")
+                                
+                                if avatars:
+                                    # Get talking_photo_id from first avatar
+                                    avatar = avatars[0]
+                                    talking_photo_id = avatar.get('talking_photo_id') or avatar.get('avatar_id')
+                                    
+                                    if talking_photo_id:
+                                        current_app.logger.info(f"Found talking_photo_id: {talking_photo_id}")
+                                        return talking_photo_id
                         
                         if attempt < max_retries - 1:
                             current_app.logger.warning(f"Group not ready yet, waiting {retry_delay}s before retry...")
@@ -308,7 +323,7 @@ class HeyGenHelper:
             
             # If we got here, get the response one more time for error handling
             response = requests.get(
-                f"{HeyGenHelper.BASE_URL}/v2/photo_avatar/avatar_groups",
+                f"{HeyGenHelper.BASE_URL}/v2/avatar_group.list?include_public=false",
                 headers=headers,
                 timeout=30
             )
