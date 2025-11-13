@@ -71,6 +71,9 @@ class ElevenLabsHelper:
             
             data = response.json()
             current_app.logger.info(f"ElevenLabs response received, audio size: {len(data.get('audio_base64', ''))} bytes")
+            current_app.logger.info(f"ElevenLabs response keys: {list(data.keys())}")
+            if 'alignment' in data:
+                current_app.logger.info(f"Alignment keys: {list(data['alignment'].keys())}")
             
             # Upload audio to S3
             from app.utils.s3_helper import s3_helper
@@ -89,11 +92,31 @@ class ElevenLabsHelper:
             )
             current_app.logger.info(f"Audio uploaded successfully: {audio_url}")
             
+            # Calculate audio duration from MP3 file
+            audio_duration = 0
+            try:
+                from mutagen.mp3 import MP3
+                audio_file.seek(0)  # Reset to beginning
+                audio = MP3(audio_file)
+                audio_duration = audio.info.length
+                current_app.logger.info(f"Calculated audio duration: {audio_duration:.2f} seconds")
+            except Exception as e:
+                current_app.logger.warning(f"Could not calculate audio duration: {str(e)}")
+                # Fallback: try to get from alignment data
+                if 'alignment' in data:
+                    alignment = data['alignment']
+                    # Try different possible keys
+                    audio_duration = (
+                        alignment.get('duration_seconds') or
+                        alignment.get('audio_duration') or
+                        0
+                    )
+            
             return {
                 'audio_url': audio_url,
                 'alignment': data.get('alignment'),
                 'normalized_alignment': data.get('normalized_alignment'),
-                'audio_duration': data.get('alignment', {}).get('duration_seconds', 0)
+                'audio_duration': audio_duration
             }
             
         except requests.exceptions.RequestException as e:
