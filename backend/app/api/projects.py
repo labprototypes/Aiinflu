@@ -142,6 +142,12 @@ def generate_audio(project_id):
             voice_id=project.blogger.elevenlabs_voice_id
         )
         
+        current_app.logger.info(f"ElevenLabs result keys: {list(result.keys())}")
+        current_app.logger.info(f"Audio duration: {result.get('audio_duration')}")
+        if result.get('alignment'):
+            current_app.logger.info(f"Alignment keys: {list(result['alignment'].keys())}")
+            current_app.logger.info(f"Alignment characters count: {len(result['alignment'].get('characters', []))}")
+        
         project.audio_url = result['audio_url']
         project.audio_alignment = {
             'alignment': result.get('alignment'),
@@ -293,7 +299,17 @@ def generate_timeline(project_id):
     
     try:
         current_app.logger.info(f"Generating timeline for project {project_id}")
+        current_app.logger.info(f"Audio alignment type: {type(project.audio_alignment)}")
+        current_app.logger.info(f"Audio alignment keys: {list(project.audio_alignment.keys()) if project.audio_alignment else 'None'}")
         current_app.logger.info(f"Audio duration: {project.audio_alignment.get('audio_duration')} seconds")
+        
+        alignment = project.audio_alignment.get('alignment')
+        if alignment:
+            current_app.logger.info(f"Alignment data keys: {list(alignment.keys())}")
+            current_app.logger.info(f"Has char_start_times_seconds: {'char_start_times_seconds' in alignment}")
+        else:
+            current_app.logger.warning("No alignment data in project.audio_alignment!")
+        
         current_app.logger.info(f"Materials count: {len(project.materials)}")
         
         timeline = gpt_helper.generate_timeline(
