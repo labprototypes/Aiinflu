@@ -662,14 +662,14 @@ class HeyGenHelper:
                 current_app.logger.error(error_msg)
                 raise ValueError(error_msg)
             
-            current_app.logger.info(f"Using HeyGen talking_photo_id: {avatar_id} (length: {len(avatar_id)})")
+            current_app.logger.info(f"Using HeyGen avatar_id: {avatar_id} (length: {len(avatar_id)})")
             
-            # Use talking_photo_id with type "talking_photo" for Photo Avatar
+            # Use avatar_id with type "avatar" and "normal" style (no cropping)
             video_inputs = [{
                 "character": {
-                    "type": "talking_photo",
-                    "talking_photo_id": avatar_id,
-                    "talking_photo_style": "circle"  # Valid values: "circle" or "square"
+                    "type": "avatar",
+                    "avatar_id": avatar_id,
+                    "avatar_style": "normal"  # Valid values: "normal", "circle", "closeUp"
                 },
                 "voice": {
                     "type": "audio",
