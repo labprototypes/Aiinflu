@@ -202,11 +202,11 @@ class HeyGenHelper:
                 current_app.logger.error(f"HeyGen API error: {error_msg}")
                 raise RuntimeError(f"HeyGen API error ({response.status_code}): {error_msg}")
             
-            # Get asset_id from response
-            audio_asset_id = result.get('data', {}).get('asset_id')
+            # Get asset_id from response (HeyGen returns 'id' for audio assets)
+            audio_asset_id = result.get('data', {}).get('id') or result.get('data', {}).get('asset_id')
             
             if not audio_asset_id:
-                raise ValueError(f"No asset_id in HeyGen audio upload response: {result}")
+                raise ValueError(f"No id or asset_id in HeyGen audio upload response: {result}")
             
             current_app.logger.info(f"Audio asset uploaded successfully: {audio_asset_id}")
             return audio_asset_id
