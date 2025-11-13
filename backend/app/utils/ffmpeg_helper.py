@@ -164,19 +164,19 @@ class FFmpegHelper:
                     # Last poster: show until its original end time
                     end_time = segment.get('end_time', start_time + 5)
                 
-                # Scale material to fit in lower 2/3 of video (with side margins)
-                # Video is 832x1088, lower 2/3 height = ~725px, width with margins = ~665px (80%)
+                # Scale material to fit in lower 1/3 of video (with side margins)
+                # Video is 832x1088, lower 1/3 height = ~363px, width with margins = ~665px (80%)
                 # force_original_aspect_ratio=decrease ensures image fits within bounds
                 filters.append(
-                    f"[{mat_input}:v]scale=665:725:force_original_aspect_ratio=decrease[mat{overlay_count}];"
+                    f"[{mat_input}:v]scale=665:363:force_original_aspect_ratio=decrease[mat{overlay_count}];"
                 )
                 
-                # Overlay in lower 2/3, centered horizontally
-                # Y position: (H/3) centers it in the lower 2/3 portion
+                # Overlay in lower 1/3, centered horizontally
+                # Y position: H*2/3 positions it in the lower 1/3 portion
                 # X position: (W-w)/2 centers it horizontally
                 next_video = f"[v{overlay_count}]"
                 filters.append(
-                    f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:H/3:enable='between(t,{start_time},{end_time})'{next_video};"
+                    f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:H*2/3:enable='between(t,{start_time},{end_time})'{next_video};"
                 )
                 
                 prev_video = next_video
@@ -243,7 +243,7 @@ class FFmpegHelper:
         
         Args:
             video_path: Path to video file
-            voiceover_text: Full voiceover text
+            voiceover_text: Full voiceover text (may contain audio tags)
             audio_alignment: Character-level timestamps from ElevenLabs
             output_filename: Output filename
             
@@ -253,16 +253,25 @@ class FFmpegHelper:
         temp_dir = os.path.dirname(video_path)
         
         try:
+            # Remove audio tags from voiceover text for subtitles
+            import re
+            clean_text = re.sub(r'\[[\w\s]+\]', '', voiceover_text).strip()
+            
             # Generate SRT subtitle file
             srt_path = os.path.join(temp_dir, 'subtitles.srt')
-            FFmpegHelper._generate_srt(voiceover_text, audio_alignment, srt_path)
+            FFmpegHelper._generate_srt(clean_text, audio_alignment, srt_path)
             
             output_path = os.path.join(temp_dir, output_filename)
             
+            # Subtitle style:
+            # - FontSize=12 (2x smaller than before)
+            # - PrimaryColour=&H00C2CC (BGR format for #CCC200 - yellow/gold)
+            # - Outline=0 (no outline)
+            # - BackColour and Shadow for readability
             cmd = [
                 'ffmpeg',
                 '-i', video_path,
-                '-vf', f"subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'",
+                '-vf', f"subtitles={srt_path}:force_style='FontSize=12,PrimaryColour=&H00C2CC,Outline=0,Shadow=1,BackColour=&H80000000'",
                 '-c:a', 'copy',
                 '-y',
                 output_path
