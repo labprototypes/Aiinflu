@@ -94,6 +94,16 @@ export default function CreatePage() {
     },
   })
 
+  const extractAndAnalyzeMutation = useMutation({
+    mutationFn: (id: string) => projectsApi.extractAndAnalyze(id),
+    onSuccess: (response) => {
+      setVoiceoverText(response.data.voiceover_text)
+      setCurrentProject(response.data.project)
+      setAnalyzeStatus('done')
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+
   const generateAudioMutation = useMutation({
     mutationFn: (id: string) => projectsApi.generateAudio(id),
     onSuccess: (response) => {
@@ -231,6 +241,13 @@ export default function CreatePage() {
   const handleExtractText = () => {
     if (currentProject) {
       extractTextMutation.mutate(currentProject.id)
+    }
+  }
+
+  const handleExtractAndAnalyze = () => {
+    if (currentProject) {
+      setAnalyzeStatus('pending')
+      extractAndAnalyzeMutation.mutate(currentProject.id)
     }
   }
 
@@ -472,35 +489,123 @@ export default function CreatePage() {
         </>
       )}
 
-      {/* Step 1: Scenario Input */}
+      {/* Step 1: Scenario Input + Materials */}
       {currentProject && locationSelected && displayStep === 1 && (
-        <div className="glass-card p-8">
-          <h3 className="text-xl font-bold mb-4">Этап 1: Введите сценарий</h3>
-          
-          <textarea
-            value={scenario}
-            onChange={(e) => setScenario(e.target.value)}
-            className="input-glass min-h-[300px] resize-none mb-4"
-            placeholder="Введите сценарий для видео..."
-          />
-          
-          <div className="flex gap-3">
-            <button
-              onClick={handleSaveScenario}
-              disabled={!scenario || updateScenarioMutation.isPending}
-              className="btn-secondary"
-            >
-              Сохранить
-            </button>
+        <div className="space-y-6">
+          {/* Scenario Input */}
+          <div className="glass-card p-8">
+            <h3 className="text-xl font-bold mb-4">Этап 1: Сценарий и материалы</h3>
             
-            <button
-              onClick={handleExtractText}
-              disabled={!scenario || extractTextMutation.isPending}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {extractTextMutation.isPending && <Loader2 size={20} className="animate-spin" />}
-              Извлечь текст для озвучки
-            </button>
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2">Сценарий видео</label>
+              <textarea
+                value={scenario}
+                onChange={(e) => setScenario(e.target.value)}
+                className="input-glass min-h-[200px] resize-none"
+                placeholder="Введите идею сценария для видео...&#10;&#10;Например: Расскажи о двух фильмах:&#10;1. Человек-паук 2 - история о супергерое&#10;2. Зеленая миля - драма о чуде"
+              />
+            </div>
+
+            {/* Materials Upload */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2">Материалы (постеры фильмов)</label>
+              <MaterialUploader
+                onFilesSelected={handleFilesSelected}
+                maxFiles={10}
+                accept="image/*,video/*"
+                disabled={uploadMaterialMutation.isPending}
+              />
+            </div>
+
+            {/* Upload Preview */}
+            {uploadingFiles.length > 0 && (
+              <div className="mb-6">
+                <UploadPreview
+                  uploadingFiles={uploadingFiles}
+                  onRemove={handleRemoveUpload}
+                />
+              </div>
+            )}
+
+            {/* Uploaded Materials Grid */}
+            {currentProject.materials && currentProject.materials.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-medium mb-3">Загруженные материалы ({currentProject.materials.length})</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {currentProject.materials.map((material: any) => (
+                    <div key={material.id} className="glass-card p-2 relative group">
+                      <img
+                        src={material.url}
+                        alt="Material"
+                        className="w-full h-32 object-cover rounded mb-2"
+                      />
+                      {material.analysis && (
+                        <p className="text-xs text-white/60 line-clamp-2">{material.analysis}</p>
+                      )}
+                      
+                      <button
+                        onClick={() => handleDeleteMaterial(material.id)}
+                        disabled={deleteMaterialMutation.isPending}
+                        className="absolute top-1 right-1 p-2 bg-red-600 hover:bg-red-700 
+                                 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity
+                                 disabled:opacity-50"
+                        title="Удалить материал"
+                      >
+                        <span className={deleteMaterialMutation.isPending ? 'hidden' : 'block'}>✕</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              {/* Status banner */}
+              {analyzeStatus === 'pending' && (
+                <div className="p-3 bg-yellow-600/20 rounded flex items-center gap-2">
+                  <Loader2 size={16} className="animate-spin" />
+                  Извлечение текста и анализ материалов...
+                </div>
+              )}
+              {analyzeStatus === 'done' && (
+                <div className="p-3 bg-green-600/20 rounded flex items-center gap-2">
+                  <Check size={16} />
+                  Готово! Текст извлечён и материалы проанализированы
+                </div>
+              )}
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveScenario}
+                  disabled={!scenario || updateScenarioMutation.isPending}
+                  className="btn-secondary"
+                >
+                  Сохранить
+                </button>
+                
+                <button
+                  onClick={handleExtractText}
+                  disabled={!scenario || extractTextMutation.isPending}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  {extractTextMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                  Извлечь текст
+                </button>
+                
+                {currentProject.materials && currentProject.materials.length > 0 && (
+                  <button
+                    onClick={handleExtractAndAnalyze}
+                    disabled={!scenario || extractAndAnalyzeMutation.isPending}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    {extractAndAnalyzeMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                    <Sparkles size={20} />
+                    Извлечь и проанализировать
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -829,7 +934,7 @@ export default function CreatePage() {
                 >
                   {generateAvatarMutation.isPending && <Loader2 size={20} className="animate-spin" />}
                   <Video size={20} />
-                  Сгенерировать видео (fal.ai InfiniTalk)
+                  Сгенерировать
                 </button>
                 
                 {generateAvatarMutation.isPending && (

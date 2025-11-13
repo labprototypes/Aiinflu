@@ -147,6 +147,56 @@ def generate_hook(project_id):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/projects/<project_id>/extract-and-analyze', methods=['POST'])
+def extract_and_analyze(project_id):
+    """Extract voiceover text AND analyze materials in parallel"""
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.scenario_text:
+        return jsonify({'error': 'No scenario text available'}), 400
+    
+    try:
+        # Extract voiceover text
+        voiceover_text = gpt_helper.extract_voiceover_text(project.scenario_text)
+        current_app.logger.info(f"Extracted voiceover text: {len(voiceover_text)} chars")
+        current_app.logger.info(f"Preview: {voiceover_text[:200]}...")
+        
+        project.voiceover_text = voiceover_text
+        project.current_step = max(project.current_step, 2)
+        
+        # Analyze materials if available
+        analysis_results = []
+        if project.materials and len(project.materials) > 0:
+            current_app.logger.info(f"Analyzing {len(project.materials)} materials")
+            
+            image_urls = [mat.get('url') for mat in project.materials if mat.get('url')]
+            
+            if image_urls:
+                analysis_results = gpt_helper.analyze_images(image_urls)
+                
+                # Update materials with analysis results
+                for i, material in enumerate(project.materials):
+                    if i < len(analysis_results):
+                        material['analysis'] = analysis_results[i].get('analysis')
+                
+                project.materials = project.materials.copy()  # Trigger SQLAlchemy update
+                current_app.logger.info(f"Analysis complete for {len(analysis_results)} materials")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'voiceover_text': voiceover_text,
+            'analysis_results': analysis_results,
+            'project': project.to_dict()
+        })
+    
+    except Exception as e:
+        current_app.logger.error(f"Extract and analyze failed: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/projects/<project_id>/generate-audio', methods=['POST'])
 def generate_audio(project_id):
     """Generate audio using ElevenLabs TTS"""
