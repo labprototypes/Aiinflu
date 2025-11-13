@@ -273,9 +273,13 @@ class GPTHelper:
             )
             
             result = response.choices[0].message.content
+            current_app.logger.info(f"GPT timeline response: {result[:500]}...")  # Log first 500 chars
+            
             import json
             timeline_data = json.loads(result)
             timeline = timeline_data.get('timeline', [])
+            
+            current_app.logger.info(f"Parsed {len(timeline)} segments from GPT response")
             
             # Post-process: ensure last segment ends exactly at audio_duration
             if timeline and len(timeline) > 0:

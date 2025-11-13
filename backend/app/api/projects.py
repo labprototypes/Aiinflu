@@ -292,11 +292,20 @@ def generate_timeline(project_id):
         return jsonify({'error': 'Materials must be uploaded first'}), 400
     
     try:
+        current_app.logger.info(f"Generating timeline for project {project_id}")
+        current_app.logger.info(f"Audio duration: {project.audio_alignment.get('audio_duration')} seconds")
+        current_app.logger.info(f"Materials count: {len(project.materials)}")
+        
         timeline = gpt_helper.generate_timeline(
             voiceover_text=project.voiceover_text,
             audio_alignment=project.audio_alignment,
             materials=project.materials
         )
+        
+        current_app.logger.info(f"Generated {len(timeline)} timeline segments")
+        if timeline:
+            current_app.logger.info(f"First segment: {timeline[0]}")
+            current_app.logger.info(f"Last segment: {timeline[-1]}")
         
         project.timeline = timeline
         project.current_step = 4
