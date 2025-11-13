@@ -669,7 +669,7 @@ class HeyGenHelper:
                 "character": {
                     "type": "talking_photo",
                     "talking_photo_id": avatar_id,
-                    "talking_photo_style": "normal"
+                    "talking_photo_style": "circle"  # Valid values: "circle" or "square"
                 },
                 "voice": {
                     "type": "audio",
