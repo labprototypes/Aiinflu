@@ -164,19 +164,19 @@ class FFmpegHelper:
                     # Last poster: show until its original end time
                     end_time = segment.get('end_time', start_time + 5)
                 
-                # Scale material to fit in lower 1/3 of video (with side margins)
-                # Video is 832x1088, lower 1/3 height = ~363px, width with margins = ~665px (80%)
+                # Scale material to fit in lower 1.2/3 of video (with side margins)
+                # Video is 832x1088, lower 1.2/3 height = ~435px (40% of height), width with margins = ~665px (80%)
                 # force_original_aspect_ratio=decrease ensures image fits within bounds
                 filters.append(
-                    f"[{mat_input}:v]scale=665:363:force_original_aspect_ratio=decrease[mat{overlay_count}];"
+                    f"[{mat_input}:v]scale=665:435:force_original_aspect_ratio=decrease[mat{overlay_count}];"
                 )
                 
-                # Overlay in lower 1/3, centered horizontally
-                # Y position: H*2/3 positions it in the lower 1/3 portion
+                # Overlay in lower 1.2/3, centered horizontally
+                # Y position: H*0.6 positions it at 60% from top (lower 40% = 1.2/3 of video)
                 # X position: (W-w)/2 centers it horizontally
                 next_video = f"[v{overlay_count}]"
                 filters.append(
-                    f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:H*2/3:enable='between(t,{start_time},{end_time})'{next_video};"
+                    f"{prev_video}[mat{overlay_count}]overlay=(W-w)/2:H*0.6:enable='between(t,{start_time},{end_time})'{next_video};"
                 )
                 
                 prev_video = next_video
@@ -306,26 +306,153 @@ class FFmpegHelper:
     
     @staticmethod
     def _generate_srt(text: str, alignment: Dict, output_path: str):
-        """Generate SRT subtitle file from text and alignment"""
+        """
+        Generate SRT subtitle file from text and alignment with smart line breaks.
+        Avoids orphaned prepositions, conjunctions, and other hanging words.
+        """
+        import re
         
-        # Simple word-based subtitle generation
+        # Get character-level timestamps from alignment
+        alignment_data = alignment.get('alignment', {})
+        characters = alignment_data.get('characters', [])
+        char_start_times = alignment_data.get('character_start_times_seconds', [])
+        char_end_times = alignment_data.get('character_end_times_seconds', [])
+        audio_duration = alignment.get('audio_duration', 30)
+        
+        # If we have alignment data, use it
+        if characters and char_start_times and len(characters) == len(char_start_times):
+            aligned_text = ''.join(characters)
+            current_app.logger.info(f"Generating subtitles with alignment data: {len(characters)} chars")
+            
+            # Split text into sentences
+            sentences = re.split(r'([.!?]+\s*)', text)
+            sentences = [''.join(sentences[i:i+2]) for i in range(0, len(sentences)-1, 2)]
+            if len(sentences) * 2 < len(text.split()):
+                sentences.append(sentences[-1] if sentences else text)
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                subtitle_index = 1
+                
+                for sentence in sentences:
+                    if not sentence.strip():
+                        continue
+                    
+                    # Find sentence position in aligned text
+                    clean_sentence = sentence.strip()
+                    # Remove extra spaces for matching
+                    search_pattern = re.sub(r'\s+', ' ', clean_sentence)[:50]
+                    
+                    sentence_pos = aligned_text.find(search_pattern[:30])
+                    if sentence_pos == -1:
+                        current_app.logger.warning(f"Could not find sentence in alignment: {search_pattern[:30]}")
+                        continue
+                    
+                    # Get timing for this sentence
+                    start_time = char_start_times[sentence_pos] if sentence_pos < len(char_start_times) else 0
+                    
+                    # Find end position
+                    sentence_end_pos = min(sentence_pos + len(clean_sentence), len(char_end_times) - 1)
+                    end_time = char_end_times[sentence_end_pos] if sentence_end_pos < len(char_end_times) else audio_duration
+                    
+                    # Smart text splitting: break into 2 lines if needed
+                    subtitle_lines = FFmpegHelper._smart_split_subtitle(clean_sentence)
+                    
+                    f.write(f"{subtitle_index}\n")
+                    f.write(f"{FFmpegHelper._format_srt_time(start_time)} --> {FFmpegHelper._format_srt_time(end_time)}\n")
+                    f.write(f"{subtitle_lines}\n\n")
+                    
+                    subtitle_index += 1
+        else:
+            # Fallback: simple word-based subtitle generation
+            current_app.logger.warning("No alignment data, using fallback subtitle generation")
+            words = text.split()
+            words_per_subtitle = 8
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                subtitle_index = 1
+                for i in range(0, len(words), words_per_subtitle):
+                    chunk_words = words[i:i+words_per_subtitle]
+                    chunk = ' '.join(chunk_words)
+                    
+                    # Calculate timing
+                    start_time = (i / len(words)) * audio_duration
+                    end_time = min(((i + words_per_subtitle) / len(words)) * audio_duration, audio_duration)
+                    
+                    # Smart split
+                    subtitle_lines = FFmpegHelper._smart_split_subtitle(chunk)
+                    
+                    f.write(f"{subtitle_index}\n")
+                    f.write(f"{FFmpegHelper._format_srt_time(start_time)} --> {FFmpegHelper._format_srt_time(end_time)}\n")
+                    f.write(f"{subtitle_lines}\n\n")
+                    
+                    subtitle_index += 1
+    
+    @staticmethod
+    def _smart_split_subtitle(text: str, max_chars_per_line: int = 42) -> str:
+        """
+        Smart text splitting for subtitles with typographic rules.
+        Avoids orphaned prepositions, conjunctions, and short words at line ends.
+        
+        Rules:
+        - Prepositions (в, на, с, к, у, о, по, за, из, до, для, без, от, при, про, под) stay with next word
+        - Conjunctions (и, а, но, или, да, что, как, если, чтобы, когда) stay with next word
+        - Particles (не, ни, ли, же, бы, ведь, уж, вот, даже) stay with next word
+        - Numbers stay with following word
+        - Max line length ~42 characters
+        """
+        if len(text) <= max_chars_per_line:
+            return text
+        
+        # List of words that should not end a line (Russian prepositions, conjunctions, particles)
+        non_breaking_words = {
+            'в', 'на', 'с', 'к', 'у', 'о', 'об', 'по', 'за', 'из', 'до', 'для', 'без', 'от', 'при', 'про', 'под',
+            'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда', 'хотя', 'пока', 'чтоб',
+            'не', 'ни', 'ли', 'же', 'бы', 'ведь', 'уж', 'вот', 'даже', 'лишь', 'только', 'ещё', 'еще',
+            'это', 'тот', 'та', 'то', 'те', 'эта', 'этот', 'эти'
+        }
+        
         words = text.split()
-        words_per_subtitle = 5
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            subtitle_index = 1
-            for i in range(0, len(words), words_per_subtitle):
-                chunk = ' '.join(words[i:i+words_per_subtitle])
-                
-                # Calculate timing (simplified - use actual alignment for production)
-                start_time = (i / len(words)) * alignment.get('audio_duration', 30)
-                end_time = ((i + words_per_subtitle) / len(words)) * alignment.get('audio_duration', 30)
-                
-                f.write(f"{subtitle_index}\n")
-                f.write(f"{FFmpegHelper._format_srt_time(start_time)} --> {FFmpegHelper._format_srt_time(end_time)}\n")
-                f.write(f"{chunk}\n\n")
-                
-                subtitle_index += 1
+        # Find best split point
+        best_split = len(words) // 2
+        line1_len = len(' '.join(words[:best_split]))
+        
+        # Try to find a better split point near the middle
+        for i in range(len(words) // 2 - 2, len(words) // 2 + 3):
+            if i <= 0 or i >= len(words):
+                continue
+            
+            line1 = ' '.join(words[:i])
+            line2 = ' '.join(words[i:])
+            
+            # Check if line lengths are acceptable
+            if len(line1) > max_chars_per_line or len(line2) > max_chars_per_line:
+                continue
+            
+            # Check if last word of first line is non-breaking
+            last_word = words[i-1].lower().strip('.,!?;:')
+            first_word_line2 = words[i].lower().strip('.,!?;:')
+            
+            # Avoid breaking before non-breaking words
+            if first_word_line2 in non_breaking_words:
+                continue
+            
+            # Avoid ending line with non-breaking word
+            if last_word in non_breaking_words:
+                continue
+            
+            # This is a good split point
+            best_split = i
+            break
+        
+        # If no good split found, use middle
+        if best_split == 0:
+            best_split = len(words) // 2
+        
+        line1 = ' '.join(words[:best_split])
+        line2 = ' '.join(words[best_split:])
+        
+        return f"{line1}\n{line2}"
     
     @staticmethod
     def _format_srt_time(seconds: float) -> str:
