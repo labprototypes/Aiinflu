@@ -175,7 +175,8 @@ class GPTHelper:
     def generate_timeline(self, voiceover_text: str, audio_alignment: dict, materials: list) -> list:
         """
         Generate video timeline matching voiceover with materials.
-        Uses REAL timestamps from audio alignment for accurate sync.
+        GPT only decides which material to show for each text segment.
+        Timestamps come directly from ElevenLabs alignment data.
         
         Args:
             voiceover_text: Full voiceover text
@@ -183,7 +184,7 @@ class GPTHelper:
             materials: List of analyzed materials
             
         Returns:
-            Timeline segments with matched materials
+            Timeline segments with matched materials and REAL timestamps
         """
         client = self._get_client()
         
@@ -196,23 +197,7 @@ class GPTHelper:
                 'url': mat.get('url')
             })
         
-        audio_duration = audio_alignment.get('audio_duration', 30)
-        
-        # Extract character timestamps from alignment for reference
-        alignment_data = audio_alignment.get('alignment', {})
-        char_start_times = alignment_data.get('char_start_times_seconds', [])
-        char_end_times = alignment_data.get('char_end_times_seconds', [])
-        characters = alignment_data.get('characters', [])
-        
-        # Build a text with approximate timestamps for GPT reference
-        timestamped_text = voiceover_text
-        if char_start_times and characters:
-            # Sample every ~50th character to show timing pattern
-            sample_points = []
-            for i in range(0, len(characters), max(1, len(characters) // 10)):
-                if i < len(char_start_times):
-                    sample_points.append(f"[{char_start_times[i]:.1f}s]{''.join(characters[max(0, i-20):i+30])}")
-            timestamped_text = "\n".join(sample_points)
+        audio_duration = audio_alignment.get('audio_duration', 0)
         
         # Format materials list for prompt
         materials_text = "\n".join([
@@ -220,81 +205,190 @@ class GPTHelper:
             for mat in materials_summary
         ])
         
-        prompt = f"""Создай тайминги для видео на основе озвучки и доступных материалов.
+        # Remove audio tags for cleaner text analysis
+        import re
+        clean_text = re.sub(r'\[[\w\s]+\]', '', voiceover_text).strip()
+        
+        prompt = f"""Раздели текст озвучки на логические сегменты и подбери к каждому подходящий материал.
 
-Полный текст озвучки: "{voiceover_text}"
-
-Примерные временные метки по тексту (для справки):
-{timestamped_text}
-
-Общая длительность аудио: {audio_duration:.1f} секунд
+Текст озвучки: "{clean_text}"
 
 Доступные материалы (постеры фильмов):
 {materials_text}
 
-ВАЖНЫЕ ПРАВИЛА:
-1. Используй ТОЛЬКО точные ID материалов из списка выше!
-2. Таймкоды должны ТОЧНО соответствовать длительности аудио ({audio_duration:.1f}s)
-3. Раздели видео на 5-8 сегментов примерно по {audio_duration/6:.1f}-{audio_duration/5:.1f} секунд каждый
-4. НЕ спеши! Таймкоды должны быть реалистичными для произнесения текста
-5. Последний сегмент должен заканчиваться ТОЧНО на {audio_duration:.1f} секунд
+ЗАДАЧА:
+1. Раздели текст на 4-7 логических сегментов (по смысловым блокам)
+2. Для каждого сегмента укажи:
+   - Фрагмент текста (text_snippet)
+   - ID подходящего материала (или "MISSING" если материала нет)
+   - Краткое объяснение выбора (rationale)
 
-Для каждого сегмента укажи:
-- start_time: начало в секундах (float)
-- end_time: конец в секундах (float)  
-- text_snippet: фрагмент озвучки для этого времени
-- material_id: ТОЧНЫЙ ID материала из списка или "MISSING"
-- rationale: почему этот материал подходит
+ПРАВИЛА:
+- Используй ТОЛЬКО ID из списка материалов выше
+- Каждый сегмент должен быть осмысленным (1-3 предложения)
+- Если фильм упоминается в тексте - используй его постер
+- Если материала для сегмента нет - ставь "MISSING"
 
 Верни JSON:
 {{
-  "timeline": [
+  "segments": [
     {{
-      "start_time": 0.0,
-      "end_time": 5.5,
-      "text_snippet": "первые слова текста...",
-      "material_id": "{materials_summary[0]['id'] if materials_summary else 'MISSING'}",
-      "rationale": "объяснение"
+      "text_snippet": "фрагмент текста для этого сегмента",
+      "material_id": "ID материала или MISSING",
+      "rationale": "почему этот материал"
     }}
   ]
-}}
-
-ВАЖНО: Проверь, что последний end_time = {audio_duration:.1f}"""
+}}"""
         
         try:
             response = client.chat.completions.create(
                 model="gpt-4-turbo-preview",
                 messages=[
-                    {"role": "system", "content": "Ты эксперт видеомонтажа. Создаёшь ТОЧНЫЕ тайминги, используя реальную длительность аудио. НЕ спеши с таймкодами!"},
+                    {"role": "system", "content": "Ты эксперт видеомонтажа. Подбираешь визуальный материал к тексту озвучки."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,  # Lower temperature for more consistent timing
+                temperature=0.3,
                 response_format={"type": "json_object"}
             )
             
             result = response.choices[0].message.content
-            current_app.logger.info(f"GPT timeline response: {result[:500]}...")  # Log first 500 chars
+            current_app.logger.info(f"GPT response: {result[:500]}...")
             
             import json
-            timeline_data = json.loads(result)
-            timeline = timeline_data.get('timeline', [])
+            gpt_data = json.loads(result)
+            segments = gpt_data.get('segments', [])
             
-            current_app.logger.info(f"Parsed {len(timeline)} segments from GPT response")
+            current_app.logger.info(f"GPT returned {len(segments)} segments")
             
-            # Post-process: ensure last segment ends exactly at audio_duration
-            if timeline and len(timeline) > 0:
-                last_segment = timeline[-1]
-                if abs(last_segment['end_time'] - audio_duration) > 0.5:  # If off by more than 0.5s
-                    current_app.logger.warning(f"Adjusting last segment from {last_segment['end_time']} to {audio_duration}")
-                    last_segment['end_time'] = audio_duration
+            # Now map segments to real timestamps from ElevenLabs
+            timeline = self._map_segments_to_timestamps(
+                segments=segments,
+                voiceover_text=voiceover_text,
+                audio_alignment=audio_alignment,
+                audio_duration=audio_duration
+            )
+            
+            current_app.logger.info(f"Generated timeline with {len(timeline)} entries")
             
             return timeline
+            
         except Exception as e:
             current_app.logger.error(f"Timeline generation failed: {str(e)}")
+            import traceback
+            current_app.logger.error(traceback.format_exc())
             return []
-        except Exception as e:
-            current_app.logger.error(f"Timeline generation failed: {str(e)}")
+    
+    def _map_segments_to_timestamps(self, segments: list, voiceover_text: str, 
+                                    audio_alignment: dict, audio_duration: float) -> list:
+        """
+        Map GPT text segments to real timestamps from ElevenLabs alignment.
+        
+        Args:
+            segments: List of text segments from GPT with material_id
+            voiceover_text: Original voiceover text
+            audio_alignment: ElevenLabs alignment data with character timestamps
+            audio_duration: Total audio duration
+            
+        Returns:
+            Timeline with real timestamps
+        """
+        import re
+        
+        # Get alignment data
+        alignment_data = audio_alignment.get('alignment', {})
+        char_start_times = alignment_data.get('char_start_times_seconds', [])
+        char_end_times = alignment_data.get('char_end_times_seconds', [])
+        characters = alignment_data.get('characters', [])
+        
+        if not char_start_times or not characters:
+            current_app.logger.warning("No alignment data available, using fallback timing")
+            return self._create_fallback_timeline(segments, audio_duration)
+        
+        # Build full character string from alignment
+        aligned_text = ''.join(characters)
+        current_app.logger.info(f"Aligned text length: {len(aligned_text)} chars")
+        
+        # Remove audio tags from voiceover for matching
+        clean_voiceover = re.sub(r'\[[\w\s]+\]', '', voiceover_text).strip()
+        
+        timeline = []
+        
+        for i, segment in enumerate(segments):
+            text_snippet = segment['text_snippet'].strip()
+            material_id = segment['material_id']
+            rationale = segment.get('rationale', '')
+            
+            # Remove audio tags from snippet
+            clean_snippet = re.sub(r'\[[\w\s]+\]', '', text_snippet).strip()
+            
+            # Find this text snippet in the aligned text
+            snippet_start_pos = aligned_text.find(clean_snippet[:50])  # Use first 50 chars for matching
+            
+            if snippet_start_pos == -1:
+                current_app.logger.warning(f"Could not find snippet in aligned text: {clean_snippet[:50]}")
+                continue
+            
+            # Get start time from character position
+            start_time = char_start_times[snippet_start_pos] if snippet_start_pos < len(char_start_times) else 0
+            
+            # For end time, look at the next segment or use audio duration
+            if i < len(segments) - 1:
+                next_snippet = segments[i + 1]['text_snippet'].strip()
+                clean_next = re.sub(r'\[[\w\s]+\]', '', next_snippet).strip()
+                next_start_pos = aligned_text.find(clean_next[:50])
+                
+                if next_start_pos != -1 and next_start_pos < len(char_start_times):
+                    end_time = char_start_times[next_start_pos]
+                else:
+                    # Fallback: estimate based on snippet length
+                    snippet_end_pos = min(snippet_start_pos + len(clean_snippet), len(char_end_times) - 1)
+                    end_time = char_end_times[snippet_end_pos]
+            else:
+                # Last segment - use audio duration
+                end_time = audio_duration
+            
+            timeline.append({
+                'start_time': round(start_time, 1),
+                'end_time': round(end_time, 1),
+                'text_snippet': text_snippet,
+                'material_id': material_id,
+                'rationale': rationale
+            })
+            
+            current_app.logger.info(f"Segment {i+1}: {start_time:.1f}s - {end_time:.1f}s | {material_id}")
+        
+        return timeline
+    
+    def _create_fallback_timeline(self, segments: list, audio_duration: float) -> list:
+        """
+        Create timeline with evenly distributed segments (fallback when no alignment data).
+        
+        Args:
+            segments: List of text segments from GPT
+            audio_duration: Total audio duration
+            
+        Returns:
+            Timeline with estimated timestamps
+        """
+        if not segments or audio_duration <= 0:
             return []
+        
+        segment_duration = audio_duration / len(segments)
+        timeline = []
+        
+        for i, segment in enumerate(segments):
+            start_time = i * segment_duration
+            end_time = (i + 1) * segment_duration if i < len(segments) - 1 else audio_duration
+            
+            timeline.append({
+                'start_time': round(start_time, 1),
+                'end_time': round(end_time, 1),
+                'text_snippet': segment['text_snippet'],
+                'material_id': segment['material_id'],
+                'rationale': segment.get('rationale', '')
+            })
+        
+        return timeline
 
 
 # Global instance
