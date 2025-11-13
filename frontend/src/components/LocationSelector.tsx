@@ -4,7 +4,7 @@ import type { Blogger } from '@/types'
 
 interface LocationSelectorProps {
   blogger: Blogger
-  selectedLocationId: number | null
+  selectedLocationId: number | null | undefined
   onSelect: (locationId: number | null) => void
 }
 
@@ -20,19 +20,39 @@ export default function LocationSelector({ blogger, selectedLocationId, onSelect
       </h3>
 
       {!hasLocations ? (
-        <div className="text-center py-8">
-          <p className="text-white/60 mb-4">
+        <div>
+          <p className="text-white/60 mb-6">
             У блогера "{blogger.name}" нет добавленных локаций.
           </p>
-          <p className="text-sm text-white/40">
-            Можно использовать основное фронтальное фото или добавить локации в настройках блогера.
+          <p className="text-sm text-white/40 mb-6">
+            Используйте основное фронтальное фото или добавьте локации в настройках блогера.
           </p>
-          <button
-            onClick={() => onSelect(null)}
-            className="btn-primary mt-6"
-          >
-            Использовать основное фото
-          </button>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Default frontal image option - shown even when no locations */}
+            <button
+              onClick={() => onSelect(null)}
+              className={`glass-card p-4 text-left transition-smooth relative ${
+                selectedLocationId === null
+                  ? 'ring-2 ring-blue-500 bg-blue-600/20'
+                  : 'hover:bg-white/10'
+              }`}
+            >
+              {selectedLocationId === null && (
+                <div className="absolute top-2 right-2 bg-blue-500 rounded-full p-1">
+                  <Check size={16} />
+                </div>
+              )}
+              {blogger.frontal_image_url && (
+                <img
+                  src={blogger.frontal_image_url}
+                  alt="Основное фото"
+                  className="w-full h-40 object-cover rounded-lg mb-3"
+                />
+              )}
+              <h4 className="font-bold">Основное фото</h4>
+            </button>
+          </div>
         </div>
       ) : (
         <>

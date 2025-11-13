@@ -22,7 +22,7 @@ export default function CreatePage() {
   const location = useLocation()
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const [selectedBlogger, setSelectedBlogger] = useState<string>('')
-  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null)
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null | undefined>(undefined)
   const [locationSelected, setLocationSelected] = useState(false) // Track if location was confirmed
   const [scenario, setScenario] = useState('')
   const [voiceoverText, setVoiceoverText] = useState('')
