@@ -296,8 +296,8 @@ class GPTHelper:
         
         # Get alignment data
         alignment_data = audio_alignment.get('alignment', {})
-        char_start_times = alignment_data.get('char_start_times_seconds', [])
-        char_end_times = alignment_data.get('char_end_times_seconds', [])
+        char_start_times = alignment_data.get('character_start_times_seconds', [])
+        char_end_times = alignment_data.get('character_end_times_seconds', [])
         characters = alignment_data.get('characters', [])
         
         if not char_start_times or not characters:

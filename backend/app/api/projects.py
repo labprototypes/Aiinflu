@@ -306,7 +306,7 @@ def generate_timeline(project_id):
         alignment = project.audio_alignment.get('alignment')
         if alignment:
             current_app.logger.info(f"Alignment data keys: {list(alignment.keys())}")
-            current_app.logger.info(f"Has char_start_times_seconds: {'char_start_times_seconds' in alignment}")
+            current_app.logger.info(f"Has character_start_times_seconds: {'character_start_times_seconds' in alignment}")
         else:
             current_app.logger.warning("No alignment data in project.audio_alignment!")
         
