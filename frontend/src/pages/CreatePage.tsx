@@ -693,55 +693,69 @@ export default function CreatePage() {
                   Сгенерировать тайминги
                 </button>
               ) : (
-                <div className="space-y-3">
-                  {currentProject.timeline.map((segment: any, index: number) => {
-                    // Find material by ID
-                    const material = segment.material_id !== 'MISSING' 
-                      ? currentProject.materials?.find((m: any) => m.id === segment.material_id)
-                      : null
+                <>
+                  <div className="space-y-3 mb-4">
+                    {currentProject.timeline.map((segment: any, index: number) => {
+                      // Find material by ID
+                      const material = segment.material_id !== 'MISSING' 
+                        ? currentProject.materials?.find((m: any) => m.id === segment.material_id)
+                        : null
 
-                    return (
-                      <div key={index} className="glass-card p-4 flex gap-4">
-                        <div className="w-20 text-center shrink-0">
-                          <div className="text-sm text-white/60">
-                            {segment.start_time.toFixed(1)}s - {segment.end_time.toFixed(1)}s
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm mb-1">{segment.text_snippet}</p>
-                          <p className="text-xs text-white/60">{segment.rationale}</p>
-                        </div>
-                        {material ? (
-                          <div className="w-32 shrink-0">
-                            <img
-                              src={material.url}
-                              alt={material.analysis || 'Material'}
-                              className="w-full h-20 object-cover rounded"
-                              title={material.analysis}
-                            />
-                            {material.analysis && (
-                              <p className="text-xs text-white/60 mt-1 text-center line-clamp-1">
-                                {material.analysis}
-                              </p>
-                            )}
-                          </div>
-                        ) : segment.material_id !== 'MISSING' ? (
-                          <div className="w-32 shrink-0">
-                            <div className="w-full h-20 bg-red-600/20 rounded flex items-center justify-center text-xs text-red-400">
-                              Материал не найден
+                      return (
+                        <div key={index} className="glass-card p-4 flex gap-4">
+                          <div className="w-20 text-center shrink-0">
+                            <div className="text-sm text-white/60">
+                              {segment.start_time.toFixed(1)}s - {segment.end_time.toFixed(1)}s
                             </div>
                           </div>
-                        ) : (
-                          <div className="w-32 shrink-0">
-                            <div className="w-full h-20 bg-white/5 rounded flex items-center justify-center text-xs text-white/40">
-                              Нет материала
-                            </div>
+                          <div className="flex-1">
+                            <p className="text-sm mb-1">{segment.text_snippet}</p>
+                            <p className="text-xs text-white/60">{segment.rationale}</p>
                           </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                          {material ? (
+                            <div className="w-32 shrink-0">
+                              <img
+                                src={material.url}
+                                alt={material.analysis || 'Material'}
+                                className="w-full h-20 object-cover rounded"
+                                title={material.analysis}
+                              />
+                              {material.analysis && (
+                                <p className="text-xs text-white/60 mt-1 text-center line-clamp-1">
+                                  {material.analysis}
+                                </p>
+                              )}
+                            </div>
+                          ) : segment.material_id !== 'MISSING' ? (
+                            <div className="w-32 shrink-0">
+                              <div className="w-full h-20 bg-red-600/20 rounded flex items-center justify-center text-xs text-red-400">
+                                Материал не найден
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-32 shrink-0">
+                              <div className="w-full h-20 bg-white/5 rounded flex items-center justify-center text-xs text-white/40">
+                                Нет материала
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Regenerate Timeline Button */}
+                  <div className="flex gap-3 mb-6">
+                    <button
+                      onClick={handleGenerateTimeline}
+                      disabled={generateTimelineMutation.isPending}
+                      className="btn-secondary flex items-center justify-center gap-2"
+                    >
+                      {generateTimelineMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                      Перегенерировать тайминги
+                    </button>
+                  </div>
+                </>
               )}
 
               {/* Next Step Button - Show after timeline is generated */}
