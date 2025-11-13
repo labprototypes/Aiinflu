@@ -63,12 +63,6 @@ export default function LocationSelector({ blogger, selectedLocationId, onSelect
                 />
               )}
               <h4 className="font-bold">Основное фото</h4>
-              <p className="text-xs text-white/60 mt-1">
-                HeyGen ID: {blogger.heygen_avatar_id || '00000'}
-              </p>
-              {(!blogger.heygen_avatar_id || blogger.heygen_avatar_id === '00000') && (
-                <p className="text-xs text-red-400 mt-1">⚠️ Avatar ID не настроен</p>
-              )}
             </button>
 
             {/* Location options */}
@@ -95,24 +89,9 @@ export default function LocationSelector({ blogger, selectedLocationId, onSelect
                   />
                 )}
                 <h4 className="font-bold">{location.name}</h4>
-                <p className="text-xs text-white/60 mt-1">
-                  HeyGen ID: {location.heygen_avatar_id || '00000'}
-                </p>
-                {(!location.heygen_avatar_id || location.heygen_avatar_id === '00000') && (
-                  <p className="text-xs text-red-400 mt-1">⚠️ Avatar ID не настроен</p>
-                )}
               </button>
             ))}
           </div>
-
-          {selectedLocationId !== undefined && (
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-4">
-              <p className="text-sm text-yellow-200">
-                💡 Убедитесь, что для выбранной локации настроен HeyGen Avatar ID. 
-                Без него генерация видео будет невозможна.
-              </p>
-            </div>
-          )}
         </>
       )}
     </div>

@@ -140,30 +140,10 @@ export default function LocationManager({
                     className="input-glass text-sm"
                     placeholder="Название локации"
                   />
-                  <input
-                    type="text"
-                    value={editAvatarId}
-                    onChange={(e) => setEditAvatarId(e.target.value)}
-                    className="input-glass text-sm font-mono"
-                    placeholder="HeyGen Avatar ID"
-                  />
                 </>
               ) : (
                 <>
                   <h4 className="font-bold">{location.name}</h4>
-                  <div className="text-xs space-y-1">
-                    <div className="text-white/60">
-                      HeyGen Avatar ID:
-                    </div>
-                    <div className="font-mono bg-white/5 px-2 py-1 rounded inline-block">
-                      {location.heygen_avatar_id || '00000'}
-                    </div>
-                    {(!location.heygen_avatar_id || location.heygen_avatar_id === '00000') && (
-                      <div className="text-red-400 text-xs mt-1">
-                        ⚠️ Avatar ID не настроен
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
             </div>
@@ -238,28 +218,6 @@ export default function LocationManager({
               className="input-glass text-sm"
               placeholder="Например: Офис, Студия, Улица..."
             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1">HeyGen Avatar ID</label>
-            <input
-              type="text"
-              value={newLocationAvatarId}
-              onChange={(e) => setNewLocationAvatarId(e.target.value)}
-              className="input-glass text-sm font-mono"
-              placeholder="00000"
-            />
-            <p className="text-xs text-white/40 mt-1">
-              Получите Avatar ID в{' '}
-              <a
-                href="https://app.heygen.com/avatars"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300"
-              >
-                HeyGen Dashboard
-              </a>
-            </p>
           </div>
 
           <div className="flex gap-2">

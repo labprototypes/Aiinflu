@@ -412,12 +412,17 @@ export default function CreatePage() {
                   <button
                     key={blogger.id}
                     onClick={() => setSelectedBlogger(blogger.id)}
-                    className={`glass-card p-4 text-left transition-smooth ${
+                    className={`glass-card p-4 text-left transition-smooth relative ${
                       selectedBlogger === blogger.id
                         ? 'ring-2 ring-blue-500 bg-blue-600/20'
                         : 'hover:bg-white/10'
                     }`}
                   >
+                    {selectedBlogger === blogger.id && (
+                      <div className="absolute top-2 right-2 bg-blue-500 rounded-full p-1">
+                        <Check size={16} />
+                      </div>
+                    )}
                     {blogger.frontal_image_url && (
                       <img
                         src={blogger.frontal_image_url}
@@ -454,7 +459,7 @@ export default function CreatePage() {
           <div className="glass-card p-6 mt-4">
             <button
               onClick={handleLocationConfirm}
-              disabled={selectedLocationId === undefined || updateScenarioMutation.isPending}
+              disabled={updateScenarioMutation.isPending}
               className="btn-primary w-full"
             >
               {updateScenarioMutation.isPending ? 'Сохранение...' : 'Продолжить к сценарию'}

@@ -195,29 +195,6 @@ export default function BloggerModal({ blogger, isOpen, onClose }: BloggerModalP
             disabled={mutation.isPending}
           />
 
-          {/* HeyGen Avatar ID for frontal image */}
-          <div>
-            <label className="block text-sm font-medium mb-2">HeyGen Avatar ID (для фронтального фото)</label>
-            <input
-              type="text"
-              value={formData.heygen_avatar_id}
-              onChange={(e) => setFormData({ ...formData, heygen_avatar_id: e.target.value })}
-              className="input-glass font-mono"
-              placeholder="00000"
-            />
-            <p className="text-xs text-white/40 mt-1">
-              Получите Avatar ID в{' '}
-              <a
-                href="https://app.heygen.com/avatars"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300"
-              >
-                HeyGen Dashboard
-              </a>
-            </p>
-          </div>
-
           {/* Location Manager - only show when editing existing blogger */}
           {blogger && (
             <LocationManager
