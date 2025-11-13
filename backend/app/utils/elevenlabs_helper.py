@@ -52,7 +52,7 @@ class ElevenLabsHelper:
             "text": text,
             "model_id": model_id,
             "voice_settings": {
-                "stability": 0.45,           # Lower for more expressiveness
+                "stability": 0.5,            # V3 requires: 0.0 (Creative), 0.5 (Natural), or 1.0 (Robust)
                 "similarity_boost": 0.75,    # Keep voice characteristics
                 "style": 0.65,               # Medium exaggeration for interesting intonation
                 "use_speaker_boost": True    # Better clarity and quality
