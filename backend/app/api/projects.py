@@ -477,8 +477,15 @@ Prompt:"""
                     print(f">>> talking_photo_id not in status, waiting 30s for HeyGen sync...")
                     import time
                     time.sleep(30)
-                    talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
-                    print(f">>> Got talking_photo_id from group: {talking_photo_id}")
+                    try:
+                        talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+                        print(f">>> Got talking_photo_id from group: {talking_photo_id}")
+                    except Exception as e:
+                        # Ultimate fallback: use avatar_id as talking_photo_id
+                        # This works for some Photo Avatar configurations
+                        print(f">>> WARNING: Could not get talking_photo_id from group: {e}")
+                        print(f">>> Using avatar_id as talking_photo_id (fallback): {heygen_avatar_id}")
+                        talking_photo_id = heygen_avatar_id
                 
                 # Add extra sync time for HeyGen internal synchronization
                 print(f">>> Adding 30s final sync delay...")
@@ -577,8 +584,14 @@ Prompt:"""
                         print(f">>> talking_photo_id not in status, waiting 30s for HeyGen sync...")
                         import time
                         time.sleep(30)
-                        talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
-                        print(f">>> Got talking_photo_id from group: {talking_photo_id}")
+                        try:
+                            talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
+                            print(f">>> Got talking_photo_id from group: {talking_photo_id}")
+                        except Exception as e:
+                            # Ultimate fallback: use avatar_id as talking_photo_id
+                            print(f">>> WARNING: Could not get talking_photo_id from group: {e}")
+                            print(f">>> Using avatar_id as talking_photo_id (fallback): {heygen_avatar_id}")
+                            talking_photo_id = heygen_avatar_id
                     
                     # Add extra sync time for HeyGen internal synchronization
                     print(f">>> Adding 30s final sync delay...")
