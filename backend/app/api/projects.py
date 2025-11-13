@@ -308,21 +308,12 @@ def generate_timeline(project_id):
 
 @bp.route('/projects/<project_id>/generate-avatar-video', methods=['POST'])
 def generate_avatar_video(project_id):
-    """Generate talking avatar video using fal.ai InfiniTalk (async)"""
+    """Generate talking avatar video using HeyGen Avatar IV (image-to-video)"""
     from flask import current_app
     project = Project.query.get_or_404(project_id)
     
-    print("=" * 80)
-    print("=== GENERATE AVATAR VIDEO CALLED ===")
-    print(f"Project ID: {project_id}")
-    print(f"Audio URL: {project.audio_url}")
-    print(f"Blogger Image URL: {project.blogger.frontal_image_url if project.blogger else 'NO BLOGGER'}")
-    print("=" * 80)
-    
-    current_app.logger.info(f"=== GENERATE AVATAR VIDEO CALLED ===")
+    current_app.logger.info(f"=== GENERATE AVATAR IV VIDEO ===")
     current_app.logger.info(f"Project ID: {project_id}")
-    current_app.logger.info(f"Audio URL: {project.audio_url}")
-    current_app.logger.info(f"Blogger Image URL: {project.blogger.frontal_image_url if project.blogger else 'NO BLOGGER'}")
     
     if not project.audio_url:
         return jsonify({'error': 'Audio must be generated first'}), 400
@@ -331,338 +322,76 @@ def generate_avatar_video(project_id):
         return jsonify({'error': 'Blogger has no frontal image'}), 400
     
     try:
-        data = request.get_json() or {}
-        expression_scale = data.get('expression_scale', 1.0)
-        face_enhance = data.get('face_enhance', True)
-        
-        # Generate prompt using GPT based on video scenario
-        print(f">>> Generating video prompt from scenario...")
-        video_prompt = None
-        audio_duration = None
-        
-        if project.scenario_text:
-            try:
-                # Ask GPT to create a short prompt describing how the person should move and express
-                prompt_request = f"""Based on this video scenario:
-{project.scenario_text}
-
-Create a SHORT prompt (max 100 characters) describing how the person should look and move on camera. Focus on:
-- Camera position (e.g., "looking at camera", "slightly turned")
-- Expression/emotion (e.g., "enthusiastic", "serious", "friendly")
-- Natural movements (e.g., "natural gestures", "expressive hands")
-
-Example: "Professional influencer speaking to camera with enthusiasm and natural hand gestures"
-
-Prompt:"""
-                
-                video_prompt = gpt_helper.ask_gpt(prompt_request, max_tokens=50)
-                print(f">>> Generated prompt: {video_prompt}")
-            except Exception as e:
-                print(f">>> Warning: Could not generate prompt via GPT: {e}")
-                video_prompt = "A professional influencer speaking to camera with natural expressions and gestures"
-        else:
-            video_prompt = "A professional influencer speaking to camera with natural expressions and gestures"
-        
-        # Calculate audio duration from audio file (for num_frames calculation)
-        if project.audio_url:
-            try:
-                import requests
-                from mutagen.mp3 import MP3
-                from io import BytesIO
-                from app.utils.s3_helper import s3_helper
-                
-                print(f">>> Downloading audio to get duration...")
-                # Generate fresh presigned URL for audio download
-                fresh_audio_url_for_download = s3_helper.get_presigned_url(project.audio_url, expiration=300)
-                audio_response = requests.get(fresh_audio_url_for_download, timeout=10)
-                audio_bytes = BytesIO(audio_response.content)
-                audio = MP3(audio_bytes)
-                audio_duration = audio.info.length
-                print(f">>> Audio duration: {audio_duration:.2f}s")
-            except Exception as e:
-                print(f">>> Warning: Could not get audio duration: {e}")
-                audio_duration = None
-        
-        print(f">>> Calling heygen_helper.start_avatar_generation...")
-        current_app.logger.info(f"Calling heygen_helper.start_avatar_generation...")
-        
-        # Generate fresh presigned URLs for HeyGen (old ones may have expired)
+        from app.utils.heygen_helper import HeyGenHelper
         from app.utils.s3_helper import s3_helper
+        
+        # Generate fresh presigned URLs (HeyGen will download from them)
         fresh_audio_url = s3_helper.get_presigned_url(project.audio_url, expiration=3600)
         fresh_image_url = s3_helper.get_presigned_url(project.blogger.frontal_image_url, expiration=3600)
         
-        print(f">>> Fresh audio URL: {fresh_audio_url[:100]}...")
-        print(f">>> Fresh image URL: {fresh_image_url[:100]}...")
-        
-        # Get HeyGen avatar_id based on selected location
-        heygen_avatar_id = "00000"
+        # Determine which image to use based on location selection
+        image_url_for_upload = fresh_image_url  # Default to frontal image
         selected_location_name = "Frontal image"
-        location_explicitly_selected = False
         
         if project.location_id is not None and project.blogger.settings:
-            # Use selected location's avatar_id
             locations = project.blogger.settings.get('locations', [])
             if project.location_id < len(locations):
                 location = locations[project.location_id]
-                heygen_avatar_id = location.get('heygen_avatar_id', '00000')
-                selected_location_name = location.get('name', f'Location {project.location_id + 1}')
-                location_explicitly_selected = True  # Mark that location was explicitly chosen
-                print(f">>> Using location: {selected_location_name}")
-            else:
-                print(f">>> WARNING: Invalid location_id {project.location_id}")
+                location_image_s3 = location.get('image_url')
+                if location_image_s3:
+                    image_url_for_upload = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
+                    selected_location_name = location.get('name', f'Location {project.location_id + 1}')
+                    current_app.logger.info(f"Using location: {selected_location_name}")
         
-        # Fallback to frontal image avatar_id ONLY if no location was explicitly selected
-        if heygen_avatar_id == "00000" and not location_explicitly_selected and project.blogger.settings:
-            heygen_avatar_id = project.blogger.settings.get('heygen_avatar_id', '00000')
-            selected_location_name = "Frontal image (default)"
+        current_app.logger.info(f"Image URL: {image_url_for_upload[:100]}...")
+        current_app.logger.info(f"Audio URL: {fresh_audio_url[:100]}...")
         
-        # If avatar_id is still "00000", create Photo Avatar automatically
-        if not heygen_avatar_id or heygen_avatar_id == "00000":
-            print(f">>> Avatar ID not configured, creating Photo Avatar automatically...")
-            current_app.logger.info("Avatar ID = 00000, creating Photo Avatar via API")
-            
-            # Determine which image to use
-            image_url_for_upload = fresh_image_url  # Default to frontal image
-            
-            if project.location_id is not None and project.blogger.settings:
-                locations = project.blogger.settings.get('locations', [])
-                if project.location_id < len(locations):
-                    location = locations[project.location_id]
-                    location_image_s3 = location.get('image_url')
-                    if location_image_s3:
-                        # Generate fresh presigned URL for location image
-                        image_url_for_upload = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
-                        print(f">>> Using location image for Photo Avatar: {selected_location_name}")
-            
-            try:
-                from app.utils.heygen_helper import HeyGenHelper
-                
-                # Step 1: Upload asset
-                print(f">>> Step 1: Uploading asset to HeyGen...")
-                image_key = HeyGenHelper.upload_asset(image_url_for_upload)
-                print(f">>> Asset uploaded, image_key: {image_key}")
-                
-                # Step 2: Create Photo Avatar Group
-                print(f">>> Step 2: Creating Photo Avatar Group...")
-                avatar_name = f"{project.blogger.name} - {selected_location_name}"
-                group_result = HeyGenHelper.create_photo_avatar_group(avatar_name, image_key)
-                heygen_avatar_id = group_result['avatar_id']
-                group_id = group_result['group_id']
-                print(f">>> Avatar group created: avatar_id={heygen_avatar_id}, group_id={group_id}")
-                
-                # Step 3: Wait for avatar to be ready before adding motion
-                print(f">>> Step 3: Waiting for avatar to be ready before adding motion...")
-                HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=120)
-                print(f">>> Avatar is ready, now adding motion...")
-                
-                # Step 4: Add motion for gesticulation
-                print(f">>> Step 4: Adding motion to avatar...")
-                HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
-                print(f">>> Motion added successfully, training started...")
-                
-                # Step 5: Wait for motion training to complete
-                print(f">>> Step 5: Waiting for motion training to complete...")
-                talking_photo_id_from_status = HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
-                print(f">>> Motion training completed!")
-                
-                # Step 6: Get talking_photo_id from trained avatar
-                print(f">>> Step 6: Getting talking_photo_id...")
-                
-                # Try to get from status response first
-                if talking_photo_id_from_status:
-                    talking_photo_id = talking_photo_id_from_status
-                    print(f">>> Got talking_photo_id from status: {talking_photo_id}")
-                else:
-                    # Fallback: wait a bit for sync, then query group
-                    print(f">>> talking_photo_id not in status, waiting 30s for HeyGen sync...")
-                    import time
-                    time.sleep(30)
-                    try:
-                        talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
-                        print(f">>> Got talking_photo_id from group: {talking_photo_id}")
-                    except Exception as e:
-                        # Ultimate fallback: use avatar_id as talking_photo_id
-                        # This works for some Photo Avatar configurations
-                        print(f">>> WARNING: Could not get talking_photo_id from group: {e}")
-                        print(f">>> Using avatar_id as talking_photo_id (fallback): {heygen_avatar_id}")
-                        talking_photo_id = heygen_avatar_id
-                
-                # Add extra sync time for HeyGen internal synchronization
-                print(f">>> Adding 30s final sync delay...")
-                time.sleep(30)
-                print(f">>> Avatar is ready for video generation")
-                
-                # Save talking_photo_id back to location for future use
-                if project.location_id is not None and project.blogger.settings:
-                    locations = project.blogger.settings.get('locations', [])
-                    if project.location_id < len(locations):
-                        from sqlalchemy.orm.attributes import flag_modified
-                        locations[project.location_id]['heygen_avatar_id'] = talking_photo_id  # Save talking_photo_id as heygen_avatar_id
-                        locations[project.location_id]['heygen_group_id'] = group_id
-                        project.blogger.settings['locations'] = locations
-                        flag_modified(project.blogger, 'settings')
-                        db.session.commit()
-                        print(f">>> Saved avatar_id to location for future use")
-                
-                # CRITICAL: Use talking_photo_id for video generation, not avatar_id!
-                heygen_avatar_id = talking_photo_id
-                print(f">>> Photo Avatar created successfully with talking_photo_id: {heygen_avatar_id}")
-                
-            except Exception as photo_error:
-                error_msg = f"Failed to create Photo Avatar: {str(photo_error)}"
-                print(f">>> ERROR: {error_msg}")
-                current_app.logger.error(error_msg)
-                return jsonify({'error': error_msg}), 500
+        # Step 1: Upload image asset (9:16 portrait format)
+        current_app.logger.info("Step 1: Uploading image asset...")
+        image_key = HeyGenHelper.upload_asset(image_url_for_upload)
+        current_app.logger.info(f"Image asset uploaded: {image_key}")
         
-        print(f">>> Using HeyGen avatar: {heygen_avatar_id} ({selected_location_name})")
-        print(f">>> Mode: Pre-configured Avatar ID")
+        # Step 2: Upload audio asset
+        current_app.logger.info("Step 2: Uploading audio asset...")
+        audio_asset_id = HeyGenHelper.upload_audio_asset(fresh_audio_url)
+        current_app.logger.info(f"Audio asset uploaded: {audio_asset_id}")
         
-        # Start async generation (returns immediately with video_id)
-        try:
-            result = heygen_helper.start_avatar_generation(
-                audio_url=fresh_audio_url,
-                image_url=fresh_image_url,
-                avatar_id=heygen_avatar_id,
-                prompt=video_prompt,
-                audio_duration=audio_duration,
-                expression_scale=expression_scale,
-                face_enhance=face_enhance
-            )
-        except RuntimeError as re:
-            error_str = str(re)
-            
-            # Check if avatar not found (404) - recreate it automatically
-            if 'not found' in error_str.lower() or '404' in error_str:
-                print(f">>> Avatar not found in HeyGen, recreating automatically...")
-                current_app.logger.warning(f"Avatar {heygen_avatar_id} not found, recreating...")
-                
-                # Determine which image to use (same logic as above)
-                image_url_for_upload = fresh_image_url
-                if project.location_id is not None and project.blogger.settings:
-                    locations = project.blogger.settings.get('locations', [])
-                    if project.location_id < len(locations):
-                        location = locations[project.location_id]
-                        location_image_s3 = location.get('image_url')
-                        if location_image_s3:
-                            image_url_for_upload = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
-                
-                try:
-                    from app.utils.heygen_helper import HeyGenHelper
-                    
-                    # Recreate Photo Avatar
-                    print(f">>> Step 1: Uploading asset to HeyGen...")
-                    image_key = HeyGenHelper.upload_asset(image_url_for_upload)
-                    print(f">>> Asset uploaded, image_key: {image_key}")
-                    
-                    print(f">>> Step 2: Creating Photo Avatar Group...")
-                    avatar_name = f"{project.blogger.name} - {selected_location_name}"
-                    group_result = HeyGenHelper.create_photo_avatar_group(avatar_name, image_key)
-                    heygen_avatar_id = group_result['avatar_id']
-                    group_id = group_result['group_id']
-                    print(f">>> Avatar group created: avatar_id={heygen_avatar_id}, group_id={group_id}")
-                    
-                    print(f">>> Step 3: Waiting for avatar to be ready before adding motion...")
-                    HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=120)
-                    print(f">>> Avatar is ready, now adding motion...")
-                    
-                    print(f">>> Step 4: Adding motion to avatar...")
-                    HeyGenHelper.add_motion_to_avatar(heygen_avatar_id, motion_type='veo2')
-                    print(f">>> Motion added successfully, training started...")
-                    
-                    print(f">>> Step 5: Waiting for motion training to complete...")
-                    talking_photo_id_from_status = HeyGenHelper._wait_for_avatar_ready(heygen_avatar_id, max_wait=300)
-                    print(f">>> Motion training completed!")
-                    
-                    print(f">>> Step 6: Getting talking_photo_id...")
-                    
-                    # Try to get from status response first
-                    if talking_photo_id_from_status:
-                        talking_photo_id = talking_photo_id_from_status
-                        print(f">>> Got talking_photo_id from status: {talking_photo_id}")
-                    else:
-                        # Fallback: wait a bit for sync, then query group
-                        print(f">>> talking_photo_id not in status, waiting 30s for HeyGen sync...")
-                        import time
-                        time.sleep(30)
-                        try:
-                            talking_photo_id = HeyGenHelper.get_talking_photo_id_from_group(group_id)
-                            print(f">>> Got talking_photo_id from group: {talking_photo_id}")
-                        except Exception as e:
-                            # Ultimate fallback: use avatar_id as talking_photo_id
-                            print(f">>> WARNING: Could not get talking_photo_id from group: {e}")
-                            print(f">>> Using avatar_id as talking_photo_id (fallback): {heygen_avatar_id}")
-                            talking_photo_id = heygen_avatar_id
-                    
-                    # Add extra sync time for HeyGen internal synchronization
-                    print(f">>> Adding 30s final sync delay...")
-                    time.sleep(30)
-                    print(f">>> Avatar is ready for video generation")
-                    
-                    # Save new talking_photo_id to location
-                    if project.location_id is not None and project.blogger.settings:
-                        locations = project.blogger.settings.get('locations', [])
-                        if project.location_id < len(locations):
-                            from sqlalchemy.orm.attributes import flag_modified
-                            locations[project.location_id]['heygen_avatar_id'] = talking_photo_id  # Save talking_photo_id as heygen_avatar_id
-                            locations[project.location_id]['heygen_group_id'] = group_id
-                            project.blogger.settings['locations'] = locations
-                            flag_modified(project.blogger, 'settings')
-                            db.session.commit()
-                            print(f">>> Saved new avatar_id to location")
-                    
-                    print(f">>> Photo Avatar recreated successfully with talking_photo_id: {talking_photo_id}")
-                    
-                    # Retry video generation with talking_photo_id (not avatar_id!)
-                    result = heygen_helper.start_avatar_generation(
-                        audio_url=fresh_audio_url,
-                        image_url=fresh_image_url,
-                        avatar_id=talking_photo_id,  # Use talking_photo_id for video generation
-                        prompt=video_prompt,
-                        audio_duration=audio_duration,
-                        expression_scale=expression_scale,
-                        face_enhance=face_enhance
-                    )
-                    
-                except Exception as recreate_error:
-                    error_msg = f"Failed to recreate Photo Avatar: {str(recreate_error)}"
-                    print(f">>> ERROR: {error_msg}")
-                    current_app.logger.error(error_msg)
-                    return jsonify({'error': error_msg}), 500
-            else:
-                # Other error - log and return
-                current_app.logger.error(f"Error in HeyGen start_avatar_generation: {error_str}")
-                return jsonify({'error': 'HeyGen error', 'detail': error_str}), 502
+        # Step 3: Generate Avatar IV video
+        video_title = f"{project.blogger.name} - {selected_location_name}"
+        current_app.logger.info(f"Step 3: Generating Avatar IV video: {video_title}")
         
-        print(f">>> HeyGen returned: {result}")
-        current_app.logger.info(f"HeyGen returned: {result}")
+        video_id = HeyGenHelper.generate_avatar_iv_video(
+            image_key=image_key,
+            audio_asset_id=audio_asset_id,
+            video_title=video_title
+        )
         
-        # Save request_id (video_id) for status polling
+        current_app.logger.info(f"Avatar IV video generation started: {video_id}")
+        
+        # Save generation parameters
         project.avatar_generation_params = {
-            'expression_scale': expression_scale,
-            'face_enhance': face_enhance,
-            'heygen_video_id': result['request_id'],
-            'status': 'processing'
+            'video_id': video_id,
+            'image_key': image_key,
+            'audio_asset_id': audio_asset_id,
+            'video_title': video_title,
+            'location': selected_location_name,
+            'mode': 'avatar_iv'
         }
         db.session.commit()
         
-        print(f">>> Saved request_id to DB: {result['request_id']}")
-        current_app.logger.info(f"Saved request_id to DB: {result['request_id']}")
-        
         return jsonify({
-            'request_id': result['request_id'],
+            'video_id': video_id,
             'status': 'processing',
-            'message': 'Avatar video generation started. Use check-avatar-status to poll for completion.',
-            'project': project.to_dict()
-        })
+            'message': 'Avatar IV video generation started'
+        }), 202
+        
     except Exception as e:
-        print(f"!!! ERROR in generate_avatar_video: {str(e)}")
-        print(f"!!! Error type: {type(e).__name__}")
-        current_app.logger.error(f"Error in generate_avatar_video: {str(e)}")
-        current_app.logger.error(f"Error type: {type(e).__name__}")
         import traceback
-        traceback.print_exc()
+        current_app.logger.error(f"Avatar IV generation error: {str(e)}")
         current_app.logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
 
 
 @bp.route('/projects/<project_id>/check-avatar-status/<request_id>', methods=['GET'])
