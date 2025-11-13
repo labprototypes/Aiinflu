@@ -307,8 +307,8 @@ class FFmpegHelper:
     @staticmethod
     def _generate_srt(text: str, alignment: Dict, output_path: str):
         """
-        Generate SRT subtitle file from text and alignment with smart line breaks.
-        Avoids orphaned prepositions, conjunctions, and other hanging words.
+        Generate TikTok-style dynamic subtitles with short phrases.
+        Shows 3-6 words at a time, synced to character-level timestamps.
         """
         import re
         
@@ -319,140 +319,198 @@ class FFmpegHelper:
         char_end_times = alignment_data.get('character_end_times_seconds', [])
         audio_duration = alignment.get('audio_duration', 30)
         
-        # If we have alignment data, use it
+        # If we have alignment data, use it for precise timing
         if characters and char_start_times and len(characters) == len(char_start_times):
             aligned_text = ''.join(characters)
-            current_app.logger.info(f"Generating subtitles with alignment data: {len(characters)} chars")
+            current_app.logger.info(f"Generating TikTok-style subtitles with alignment data: {len(characters)} chars")
             
-            # Split text into sentences
-            sentences = re.split(r'([.!?]+\s*)', text)
-            sentences = [''.join(sentences[i:i+2]) for i in range(0, len(sentences)-1, 2)]
-            if len(sentences) * 2 < len(text.split()):
-                sentences.append(sentences[-1] if sentences else text)
+            # Split text into words
+            words = text.split()
             
             with open(output_path, 'w', encoding='utf-8') as f:
                 subtitle_index = 1
+                i = 0
                 
-                for sentence in sentences:
-                    if not sentence.strip():
-                        continue
+                while i < len(words):
+                    # Take 3-6 words for this subtitle chunk
+                    chunk_size = FFmpegHelper._calculate_optimal_chunk_size(words[i:])
+                    chunk_words = words[i:i+chunk_size]
+                    chunk_text = ' '.join(chunk_words)
                     
-                    # Find sentence position in aligned text
-                    clean_sentence = sentence.strip()
-                    # Remove extra spaces for matching
-                    search_pattern = re.sub(r'\s+', ' ', clean_sentence)[:50]
+                    # Find this chunk in aligned text to get precise timing
+                    # Search for first few words to find position
+                    search_text = ' '.join(chunk_words[:2]) if len(chunk_words) >= 2 else chunk_words[0]
                     
-                    sentence_pos = aligned_text.find(search_pattern[:30])
-                    if sentence_pos == -1:
-                        current_app.logger.warning(f"Could not find sentence in alignment: {search_pattern[:30]}")
-                        continue
+                    # Find position in aligned text
+                    chunk_start_pos = aligned_text.find(search_text[:20])
                     
-                    # Get timing for this sentence
-                    start_time = char_start_times[sentence_pos] if sentence_pos < len(char_start_times) else 0
+                    if chunk_start_pos != -1 and chunk_start_pos < len(char_start_times):
+                        start_time = char_start_times[chunk_start_pos]
+                        
+                        # Find end position (end of last word in chunk)
+                        chunk_end_pos = min(chunk_start_pos + len(chunk_text), len(char_end_times) - 1)
+                        end_time = char_end_times[chunk_end_pos] if chunk_end_pos < len(char_end_times) else audio_duration
+                        
+                        # Ensure minimum subtitle duration (0.8 seconds for readability)
+                        if end_time - start_time < 0.8:
+                            end_time = min(start_time + 0.8, audio_duration)
+                    else:
+                        # Fallback timing if not found
+                        current_app.logger.warning(f"Could not find chunk in alignment: {search_text[:20]}")
+                        word_ratio = i / len(words)
+                        start_time = word_ratio * audio_duration
+                        end_time = min(((i + chunk_size) / len(words)) * audio_duration, audio_duration)
                     
-                    # Find end position
-                    sentence_end_pos = min(sentence_pos + len(clean_sentence), len(char_end_times) - 1)
-                    end_time = char_end_times[sentence_end_pos] if sentence_end_pos < len(char_end_times) else audio_duration
-                    
-                    # Smart text splitting: break into 2 lines if needed
-                    subtitle_lines = FFmpegHelper._smart_split_subtitle(clean_sentence)
+                    # Smart line breaking (max 2 lines, ~25 chars per line)
+                    subtitle_lines = FFmpegHelper._smart_split_short_subtitle(chunk_text)
                     
                     f.write(f"{subtitle_index}\n")
                     f.write(f"{FFmpegHelper._format_srt_time(start_time)} --> {FFmpegHelper._format_srt_time(end_time)}\n")
                     f.write(f"{subtitle_lines}\n\n")
                     
                     subtitle_index += 1
+                    i += chunk_size
+                    
+                    # Move aligned_text forward to avoid finding same position again
+                    if chunk_start_pos != -1:
+                        aligned_text = aligned_text[chunk_start_pos + len(chunk_text):]
+                        # Update character arrays
+                        if chunk_start_pos + len(chunk_text) < len(characters):
+                            char_start_times = char_start_times[chunk_start_pos + len(chunk_text):]
+                            char_end_times = char_end_times[chunk_start_pos + len(chunk_text):]
+                            characters = characters[chunk_start_pos + len(chunk_text):]
+                            aligned_text = ''.join(characters)
+                        
         else:
             # Fallback: simple word-based subtitle generation
             current_app.logger.warning("No alignment data, using fallback subtitle generation")
             words = text.split()
-            words_per_subtitle = 8
             
             with open(output_path, 'w', encoding='utf-8') as f:
                 subtitle_index = 1
-                for i in range(0, len(words), words_per_subtitle):
-                    chunk_words = words[i:i+words_per_subtitle]
+                i = 0
+                
+                while i < len(words):
+                    chunk_size = FFmpegHelper._calculate_optimal_chunk_size(words[i:])
+                    chunk_words = words[i:i+chunk_size]
                     chunk = ' '.join(chunk_words)
                     
                     # Calculate timing
                     start_time = (i / len(words)) * audio_duration
-                    end_time = min(((i + words_per_subtitle) / len(words)) * audio_duration, audio_duration)
+                    end_time = min(((i + chunk_size) / len(words)) * audio_duration, audio_duration)
+                    
+                    # Ensure minimum duration
+                    if end_time - start_time < 0.8:
+                        end_time = min(start_time + 0.8, audio_duration)
                     
                     # Smart split
-                    subtitle_lines = FFmpegHelper._smart_split_subtitle(chunk)
+                    subtitle_lines = FFmpegHelper._smart_split_short_subtitle(chunk)
                     
                     f.write(f"{subtitle_index}\n")
                     f.write(f"{FFmpegHelper._format_srt_time(start_time)} --> {FFmpegHelper._format_srt_time(end_time)}\n")
                     f.write(f"{subtitle_lines}\n\n")
                     
                     subtitle_index += 1
+                    i += chunk_size
     
     @staticmethod
-    def _smart_split_subtitle(text: str, max_chars_per_line: int = 42) -> str:
+    def _calculate_optimal_chunk_size(words: list) -> int:
         """
-        Smart text splitting for subtitles with typographic rules.
-        Avoids orphaned prepositions, conjunctions, and short words at line ends.
+        Calculate optimal number of words for a subtitle chunk.
+        Aims for 3-6 words, avoiding orphaned short words.
+        """
+        if len(words) == 0:
+            return 0
+        
+        # Non-breaking words that should not end a chunk
+        non_breaking = {'в', 'на', 'с', 'к', 'у', 'о', 'об', 'по', 'за', 'из', 'до', 'для', 'без', 'от', 'при', 'про', 'под',
+                       'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда',
+                       'не', 'ни', 'ли', 'же', 'бы', 'это', 'эта', 'этот', 'эти', 'тот'}
+        
+        # Start with default chunk size
+        if len(words) <= 3:
+            return len(words)
+        
+        # Try 4-6 words first
+        for size in [5, 4, 6, 3]:
+            if size > len(words):
+                continue
+            
+            # Check if last word of chunk is non-breaking
+            last_word = words[size - 1].lower().strip('.,!?;:')
+            next_word = words[size].lower().strip('.,!?;:') if size < len(words) else ''
+            
+            # Avoid ending with non-breaking word
+            if last_word in non_breaking:
+                continue
+            
+            # Avoid breaking before non-breaking word
+            if next_word in non_breaking:
+                continue
+            
+            return size
+        
+        # Fallback
+        return min(4, len(words))
+    
+    @staticmethod
+    def _smart_split_short_subtitle(text: str, max_chars_per_line: int = 25) -> str:
+        """
+        Smart text splitting for short TikTok-style subtitles.
+        Maximum 2 lines, ~25 characters per line.
         
         Rules:
-        - Prepositions (в, на, с, к, у, о, по, за, из, до, для, без, от, при, про, под) stay with next word
-        - Conjunctions (и, а, но, или, да, что, как, если, чтобы, когда) stay with next word
-        - Particles (не, ни, ли, же, бы, ведь, уж, вот, даже) stay with next word
-        - Numbers stay with following word
-        - Max line length ~42 characters
+        - Keep it short and punchy
+        - Avoid orphaned prepositions and conjunctions
+        - Break at natural pause points
         """
+        # If text fits in one line, return as is
         if len(text) <= max_chars_per_line:
             return text
         
-        # List of words that should not end a line (Russian prepositions, conjunctions, particles)
+        # List of words that should not end a line
         non_breaking_words = {
             'в', 'на', 'с', 'к', 'у', 'о', 'об', 'по', 'за', 'из', 'до', 'для', 'без', 'от', 'при', 'про', 'под',
-            'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда', 'хотя', 'пока', 'чтоб',
-            'не', 'ни', 'ли', 'же', 'бы', 'ведь', 'уж', 'вот', 'даже', 'лишь', 'только', 'ещё', 'еще',
+            'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда', 'хотя',
+            'не', 'ни', 'ли', 'же', 'бы', 'ведь', 'уж', 'вот', 'даже',
             'это', 'тот', 'та', 'то', 'те', 'эта', 'этот', 'эти'
         }
         
         words = text.split()
         
-        # Find best split point
-        best_split = len(words) // 2
-        line1_len = len(' '.join(words[:best_split]))
+        # Try to split near the middle
+        mid = len(words) // 2
         
-        # Try to find a better split point near the middle
-        for i in range(len(words) // 2 - 2, len(words) // 2 + 3):
+        # Look for best split point around middle
+        for i in range(mid - 1, mid + 2):
             if i <= 0 or i >= len(words):
                 continue
             
             line1 = ' '.join(words[:i])
             line2 = ' '.join(words[i:])
             
-            # Check if line lengths are acceptable
+            # Check line lengths
             if len(line1) > max_chars_per_line or len(line2) > max_chars_per_line:
                 continue
             
-            # Check if last word of first line is non-breaking
+            # Check for non-breaking words
             last_word = words[i-1].lower().strip('.,!?;:')
             first_word_line2 = words[i].lower().strip('.,!?;:')
             
-            # Avoid breaking before non-breaking words
-            if first_word_line2 in non_breaking_words:
+            if last_word in non_breaking_words or first_word_line2 in non_breaking_words:
                 continue
             
-            # Avoid ending line with non-breaking word
-            if last_word in non_breaking_words:
-                continue
-            
-            # This is a good split point
-            best_split = i
-            break
+            # Good split point found
+            return f"{line1}\n{line2}"
         
-        # If no good split found, use middle
-        if best_split == 0:
-            best_split = len(words) // 2
+        # Fallback: split at middle
+        mid = len(words) // 2
+        if mid > 0:
+            line1 = ' '.join(words[:mid])
+            line2 = ' '.join(words[mid:])
+            return f"{line1}\n{line2}"
         
-        line1 = ' '.join(words[:best_split])
-        line2 = ' '.join(words[best_split:])
-        
-        return f"{line1}\n{line2}"
+        return text
     
     @staticmethod
     def _format_srt_time(seconds: float) -> str:
