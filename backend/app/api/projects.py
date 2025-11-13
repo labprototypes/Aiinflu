@@ -380,6 +380,7 @@ def generate_avatar_video(project_id):
         db.session.commit()
         
         return jsonify({
+            'request_id': video_id,  # Frontend expects request_id
             'video_id': video_id,
             'status': 'processing',
             'message': 'Avatar IV video generation started'
