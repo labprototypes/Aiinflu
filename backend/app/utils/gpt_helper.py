@@ -172,6 +172,68 @@ class GPTHelper:
         
         return results
     
+    def generate_hook(self, scenario: str) -> str:
+        """
+        Generate catchy hook/intro for video start.
+        
+        Args:
+            scenario: Raw scenario text
+            
+        Returns:
+            str: Short catchy hook (1-2 sentences)
+        """
+        client = self._get_client()
+        
+        prompt = f"""Ты эксперт по созданию вирусных TikTok/Reels видео.
+
+Твоя задача: создать ЦЕПЛЯЮЩИЙ ХУК для начала видео на основе сценария.
+
+Сценарий:
+{scenario}
+
+ПРАВИЛА:
+- Длина: 1-2 предложения (максимум 15 слов)
+- Должен мгновенно захватить внимание
+- Создать интригу или любопытство
+- Подходит для вертикального короткого видео
+
+СТИЛИ ХУКОВ (выбери наиболее подходящий):
+1. "ТОП-формат": "ТОП 5 фильмов которые изменят ваше мировоззрение"
+2. "Не поверите": "Вы не поверите какие фильмы могут довести до слез"
+3. "Секрет": "Эти фильмы знают немногие но они гениальны"
+4. "Вопрос": "Какой фильм посмотреть сегодня вечером"
+5. "Шок-факт": "Эти два фильма имеют одну невероятную тайну"
+6. "Проблема-решение": "Скучно Вот два фильма которые точно вас зацепят"
+7. "Обещание": "Сегодня расскажу о фильмах которые нельзя пропустить"
+
+НЕ используй:
+- Длинные предложения
+- Сложные конструкции
+- Формальный тон
+- Банальности ("Привет всем", "В этом видео")
+
+Верни ТОЛЬКО текст хука без объяснений:"""
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4-turbo-preview",
+                messages=[
+                    {"role": "system", "content": "Ты эксперт по вирусному короткому видеоконтенту."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.8,  # Higher temperature for creativity
+                max_tokens=100
+            )
+            
+            hook = response.choices[0].message.content.strip()
+            current_app.logger.info(f"Generated hook: {hook}")
+            return hook
+            
+        except Exception as e:
+            current_app.logger.error(f"Hook generation failed: {str(e)}")
+            # Fallback to generic hook
+            return "Сегодня расскажу о невероятных фильмах"
+    
     def generate_timeline(self, voiceover_text: str, audio_alignment: dict, materials: list) -> list:
         """
         Generate video timeline matching voiceover with materials.

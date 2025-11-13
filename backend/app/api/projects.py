@@ -125,6 +125,28 @@ def extract_voiceover_text(project_id):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/projects/<project_id>/generate-hook', methods=['POST'])
+def generate_hook(project_id):
+    """Generate catchy hook for video intro"""
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.scenario_text:
+        return jsonify({'error': 'No scenario text available'}), 400
+    
+    try:
+        hook = gpt_helper.generate_hook(project.scenario_text)
+        
+        current_app.logger.info(f"Generated hook: {hook}")
+        
+        return jsonify({
+            'hook': hook
+        })
+    
+    except Exception as e:
+        current_app.logger.error(f"Hook generation failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/projects/<project_id>/generate-audio', methods=['POST'])
 def generate_audio(project_id):
     """Generate audio using ElevenLabs TTS"""
