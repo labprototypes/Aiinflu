@@ -131,10 +131,11 @@ class GPTHelper:
     def generate_timeline(self, voiceover_text: str, audio_alignment: dict, materials: list) -> list:
         """
         Generate video timeline matching voiceover with materials.
+        Uses REAL timestamps from audio alignment for accurate sync.
         
         Args:
             voiceover_text: Full voiceover text
-            audio_alignment: Character-level timestamps
+            audio_alignment: Character-level timestamps from ElevenLabs
             materials: List of analyzed materials
             
         Returns:
@@ -153,57 +154,96 @@ class GPTHelper:
         
         audio_duration = audio_alignment.get('audio_duration', 30)
         
+        # Extract character timestamps from alignment for reference
+        alignment_data = audio_alignment.get('alignment', {})
+        char_start_times = alignment_data.get('char_start_times_seconds', [])
+        char_end_times = alignment_data.get('char_end_times_seconds', [])
+        characters = alignment_data.get('characters', [])
+        
+        # Build a text with approximate timestamps for GPT reference
+        timestamped_text = voiceover_text
+        if char_start_times and characters:
+            # Sample every ~50th character to show timing pattern
+            sample_points = []
+            for i in range(0, len(characters), max(1, len(characters) // 10)):
+                if i < len(char_start_times):
+                    sample_points.append(f"[{char_start_times[i]:.1f}s]{''.join(characters[max(0, i-20):i+30])}")
+            timestamped_text = "\n".join(sample_points)
+        
         # Format materials list for prompt
         materials_text = "\n".join([
-            f"- ID: {mat['id']}\n  Название: {mat['description']}"
+            f"- ID: {mat['id']}\n  Описание: {mat['description']}"
             for mat in materials_summary
         ])
         
         prompt = f"""Создай тайминги для видео на основе озвучки и доступных материалов.
 
-Текст озвучки: "{voiceover_text}"
+Полный текст озвучки: "{voiceover_text}"
 
-Длительность аудио: {audio_duration} секунд
+Примерные временные метки по тексту (для справки):
+{timestamped_text}
+
+Общая длительность аудио: {audio_duration:.1f} секунд
 
 Доступные материалы (постеры фильмов):
 {materials_text}
 
-ВАЖНО: Используй ТОЧНЫЕ ID материалов из списка выше! Не придумывай новые ID.
+ВАЖНЫЕ ПРАВИЛА:
+1. Используй ТОЛЬКО точные ID материалов из списка выше!
+2. Таймкоды должны ТОЧНО соответствовать длительности аудио ({audio_duration:.1f}s)
+3. Раздели видео на 5-8 сегментов примерно по {audio_duration/6:.1f}-{audio_duration/5:.1f} секунд каждый
+4. НЕ спеши! Таймкоды должны быть реалистичными для произнесения текста
+5. Последний сегмент должен заканчиваться ТОЧНО на {audio_duration:.1f} секунд
 
-Раздели видео на 5-10 сегментов по 3-8 секунд каждый. Для каждого сегмента:
-1. start_time, end_time (в секундах)
-2. text_snippet - фрагмент текста озвучки для этого момента
-3. material_id - ТОЧНЫЙ ID материала из списка выше (например "{materials_summary[0]['id'] if materials_summary else 'abc123'}") или "MISSING" если нет подходящего
-4. rationale - почему этот материал подходит к данному фрагменту текста
+Для каждого сегмента укажи:
+- start_time: начало в секундах (float)
+- end_time: конец в секундах (float)  
+- text_snippet: фрагмент озвучки для этого времени
+- material_id: ТОЧНЫЙ ID материала из списка или "MISSING"
+- rationale: почему этот материал подходит
 
 Верни JSON:
 {{
   "timeline": [
     {{
       "start_time": 0.0,
-      "end_time": 5.2,
-      "text_snippet": "...",
+      "end_time": 5.5,
+      "text_snippet": "первые слова текста...",
       "material_id": "{materials_summary[0]['id'] if materials_summary else 'MISSING'}",
-      "rationale": "..."
+      "rationale": "объяснение"
     }}
   ]
-}}"""
+}}
+
+ВАЖНО: Проверь, что последний end_time = {audio_duration:.1f}"""
         
         try:
             response = client.chat.completions.create(
                 model="gpt-4-turbo-preview",
                 messages=[
-                    {"role": "system", "content": "Ты эксперт видеомонтажа. Создаёшь тайминги."},
+                    {"role": "system", "content": "Ты эксперт видеомонтажа. Создаёшь ТОЧНЫЕ тайминги, используя реальную длительность аудио. НЕ спеши с таймкодами!"},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.5,
+                temperature=0.3,  # Lower temperature for more consistent timing
                 response_format={"type": "json_object"}
             )
             
             result = response.choices[0].message.content
             import json
             timeline_data = json.loads(result)
-            return timeline_data.get('timeline', [])
+            timeline = timeline_data.get('timeline', [])
+            
+            # Post-process: ensure last segment ends exactly at audio_duration
+            if timeline and len(timeline) > 0:
+                last_segment = timeline[-1]
+                if abs(last_segment['end_time'] - audio_duration) > 0.5:  # If off by more than 0.5s
+                    current_app.logger.warning(f"Adjusting last segment from {last_segment['end_time']} to {audio_duration}")
+                    last_segment['end_time'] = audio_duration
+            
+            return timeline
+        except Exception as e:
+            current_app.logger.error(f"Timeline generation failed: {str(e)}")
+            return []
         except Exception as e:
             current_app.logger.error(f"Timeline generation failed: {str(e)}")
             return []
