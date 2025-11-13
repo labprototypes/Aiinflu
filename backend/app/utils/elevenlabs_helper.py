@@ -25,15 +25,15 @@ class ElevenLabsHelper:
         self,
         text: str,
         voice_id: str,
-        model_id: str = "eleven_multilingual_v2"
+        model_id: str = "eleven_v3"
     ) -> dict:
         """
-        Generate speech with character-level timestamps.
+        Generate speech with character-level timestamps using Eleven v3.
         
         Args:
-            text: Text to convert to speech
+            text: Text to convert to speech (supports audio tags like [excited], [whispers])
             voice_id: ElevenLabs voice ID
-            model_id: Model to use (default: eleven_multilingual_v2)
+            model_id: Model to use (default: eleven_v3 - most expressive model)
             
         Returns:
             dict: {
@@ -52,10 +52,10 @@ class ElevenLabsHelper:
             "text": text,
             "model_id": model_id,
             "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75,
-                "style": 0,
-                "use_speaker_boost": True
+                "stability": 0.45,           # Lower for more expressiveness
+                "similarity_boost": 0.75,    # Keep voice characteristics
+                "style": 0.65,               # Medium exaggeration for interesting intonation
+                "use_speaker_boost": True    # Better clarity and quality
             }
         }
         

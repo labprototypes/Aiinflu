@@ -98,9 +98,13 @@ def extract_voiceover_text(project_id):
         return jsonify({'error': 'Scenario text is required'}), 400
     
     try:
-        # Extract text using GPT
-        current_app.logger.info("Calling GPT-4 for text extraction")
+        # Extract text using GPT (with audio tags for Eleven v3)
+        current_app.logger.info("Calling GPT-4 for text extraction with audio tags")
         voiceover_text = gpt_helper.extract_voiceover_text(project.scenario_text)
+        
+        # Log result for verification
+        current_app.logger.info(f"Text extracted with audio tags (length: {len(voiceover_text)} chars)")
+        current_app.logger.debug(f"Voiceover preview: {voiceover_text[:200]}...")
         
         # Save to project
         project.voiceover_text = voiceover_text
