@@ -98,6 +98,10 @@ export default function CreatePage() {
     mutationFn: (id: string) => projectsApi.generateAudio(id),
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+    onError: (error) => {
+      console.error('Audio generation failed:', error)
     },
   })
 
@@ -547,13 +551,15 @@ export default function CreatePage() {
                 <button
                   onClick={handleGenerateAudio}
                   disabled={generateAudioMutation.isPending}
-                  className="btn-secondary"
+                  className="btn-secondary flex items-center justify-center gap-2"
                 >
+                  {generateAudioMutation.isPending && <Loader2 size={20} className="animate-spin" />}
                   Перегенерировать
                 </button>
                 
                 <button
                   onClick={handleApproveVoiceover}
+                  disabled={updateScenarioMutation.isPending}
                   className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   <Check size={20} />
