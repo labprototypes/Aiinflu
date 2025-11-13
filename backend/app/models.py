@@ -118,11 +118,11 @@ class Project(db.Model):
     timeline = db.Column(JSON)  # Montage timeline with timecodes
     
     # Step 5: Avatar video
-    avatar_video_url = db.Column(db.String(512))  # From fal.ai InfiniTalk
+    avatar_video_url = db.Column(db.String(1024))  # From HeyGen (URLs with AWS signatures are long)
     avatar_generation_params = db.Column(JSON)  # Parameters used for generation
     
     # Step 6: Final video
-    final_video_url = db.Column(db.String(512))  # Final composed video with subtitles
+    final_video_url = db.Column(db.String(1024))  # Final composed video with subtitles
     
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
