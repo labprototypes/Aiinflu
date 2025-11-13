@@ -667,15 +667,15 @@ Prompt:"""
 
 @bp.route('/projects/<project_id>/check-avatar-status/<request_id>', methods=['GET'])
 def check_avatar_status(project_id, request_id):
-    """Check the status of avatar video generation"""
-    print(f"=== CHECK AVATAR STATUS CALLED ===")
-    print(f"Video ID: {request_id}")
-    current_app.logger.info(f"=== CHECK AVATAR STATUS CALLED ===")
+    """Check the status of Avatar IV video generation"""
+    from flask import current_app
+    current_app.logger.info(f"=== CHECK AVATAR IV STATUS ===")
     current_app.logger.info(f"Video ID: {request_id}")
     
     try:
-        status = heygen_helper.check_status(request_id)
-        print(f"Status result: {status}")
+        from app.utils.heygen_helper import HeyGenHelper
+        
+        status = HeyGenHelper.get_video_status(request_id)
         current_app.logger.info(f"Status result: {status}")
         
         # If completed, save video URL
@@ -693,13 +693,11 @@ def check_avatar_status(project_id, request_id):
             project.current_step = 5  # Ready for final composition
             db.session.commit()
             
-            print(f"Video completed! URL: {status['video_url']}")
-            current_app.logger.info(f"Video completed! URL: {status['video_url']}")
+            current_app.logger.info(f"Avatar IV video completed! URL: {status['video_url']}")
         
         return jsonify(status)
     
     except Exception as e:
-        print(f"!!! ERROR in check_avatar_status: {str(e)}")
         current_app.logger.error(f"check_avatar_status error: {str(e)}")
         return jsonify({'status': 'error', 'error': str(e)}), 500
 

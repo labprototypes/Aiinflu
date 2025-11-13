@@ -147,6 +147,75 @@ class HeyGenHelper:
             raise RuntimeError(f"Asset upload failed: {str(e)}")
     
     @staticmethod
+    def upload_audio_asset(audio_url: str) -> str:
+        """
+        Upload an audio asset to HeyGen and get audio_asset_id
+        
+        Args:
+            audio_url: URL to the audio file (must be publicly accessible)
+            
+        Returns:
+            audio_asset_id for Avatar IV generation
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        try:
+            current_app.logger.info(f"Uploading audio asset to HeyGen: {audio_url}")
+            
+            # Download the audio first
+            current_app.logger.info("Downloading audio from S3...")
+            audio_response = requests.get(audio_url, timeout=60)
+            audio_response.raise_for_status()
+            audio_data = audio_response.content
+            current_app.logger.info(f"Audio downloaded, size: {len(audio_data)} bytes")
+            
+            # Detect content type (mp3, wav, etc)
+            content_type = 'audio/mpeg'  # default to mp3
+            if audio_url.lower().endswith('.wav'):
+                content_type = 'audio/wav'
+            elif audio_url.lower().endswith('.ogg'):
+                content_type = 'audio/ogg'
+            
+            headers = {
+                'accept': 'application/json',
+                'Content-Type': content_type,
+                'X-Api-Key': api_key
+            }
+            
+            # Send raw binary data in body
+            response = requests.post(
+                "https://upload.heygen.com/v1/asset",
+                headers=headers,
+                data=audio_data,
+                timeout=120
+            )
+            
+            current_app.logger.info(f"Upload audio response status: {response.status_code}")
+            current_app.logger.info(f"Upload audio response body: {response.text}")
+            
+            result = response.json()
+            
+            if response.status_code >= 400:
+                error_msg = result.get('message', result.get('error', {}).get('message', 'Unknown error'))
+                current_app.logger.error(f"HeyGen API error: {error_msg}")
+                raise RuntimeError(f"HeyGen API error ({response.status_code}): {error_msg}")
+            
+            # Get asset_id from response
+            audio_asset_id = result.get('data', {}).get('asset_id')
+            
+            if not audio_asset_id:
+                raise ValueError(f"No asset_id in HeyGen audio upload response: {result}")
+            
+            current_app.logger.info(f"Audio asset uploaded successfully: {audio_asset_id}")
+            return audio_asset_id
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to upload audio asset: {str(e)}")
+            raise RuntimeError(f"Audio asset upload failed: {str(e)}")
+    
+    @staticmethod
     def create_photo_avatar_group(name: str, image_key: str) -> Dict:
         """
         Create a photo avatar group with a single image
@@ -845,6 +914,195 @@ class HeyGenHelper:
         except Exception as e:
             current_app.logger.error(f"HeyGen status check error: {str(e)}")
             current_app.logger.error(f"Error type: {type(e).__name__}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+    
+    @staticmethod
+    def get_default_voice_id() -> str:
+        """
+        Get default voice_id from HeyGen voices list
+        (Required even when using custom audio)
+        
+        Returns:
+            voice_id string
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        try:
+            current_app.logger.info("Fetching HeyGen voices list...")
+            
+            headers = {
+                'X-Api-Key': api_key
+            }
+            
+            response = requests.get(
+                f"{HeyGenHelper.BASE_URL}/v2/voices",
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            voices = data.get('data', {}).get('voices', [])
+            
+            if not voices:
+                raise ValueError("No voices found in HeyGen account")
+            
+            # Get first available voice
+            voice_id = voices[0].get('voice_id')
+            current_app.logger.info(f"Using default voice_id: {voice_id}")
+            
+            return voice_id
+            
+        except Exception as e:
+            current_app.logger.error(f"Failed to get voice_id: {str(e)}")
+            raise
+    
+    @staticmethod
+    def generate_avatar_iv_video(
+        image_key: str,
+        audio_asset_id: str,
+        video_title: str = "Avatar IV Video"
+    ) -> str:
+        """
+        Generate Avatar IV video (image-to-video) from image and audio
+        
+        Args:
+            image_key: Asset ID from upload_asset (9:16 image)
+            audio_asset_id: Asset ID from upload_asset (audio file)
+            video_title: Title for the video
+            
+        Returns:
+            video_id for status checking
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        try:
+            # Get required voice_id (even though we use custom audio)
+            voice_id = HeyGenHelper.get_default_voice_id()
+            
+            current_app.logger.info(f"Generating Avatar IV video with image_key={image_key}, audio_asset_id={audio_asset_id}")
+            
+            headers = {
+                'X-Api-Key': api_key,
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                "image_key": image_key,
+                "video_title": video_title,
+                "video_orientation": "portrait",  # 9:16 vertical format
+                "voice_id": voice_id,
+                "audio_asset_id": audio_asset_id
+            }
+            
+            current_app.logger.info(f"Avatar IV request payload: {payload}")
+            
+            response = requests.post(
+                f"{HeyGenHelper.BASE_URL}/v2/video/av4/generate",
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+            
+            current_app.logger.info(f"Avatar IV response status: {response.status_code}")
+            current_app.logger.info(f"Avatar IV response: {response.text}")
+            
+            response.raise_for_status()
+            
+            data = response.json()
+            video_id = data.get('data', {}).get('video_id')
+            
+            if not video_id:
+                raise ValueError(f"No video_id in response: {data}")
+            
+            current_app.logger.info(f"Avatar IV video generation started: {video_id}")
+            return video_id
+            
+        except requests.exceptions.HTTPError as e:
+            try:
+                error_body = e.response.json()
+                error_msg = error_body.get('error', {}).get('message', str(e))
+                current_app.logger.error(f"Avatar IV generation HTTP error: {error_msg}")
+                current_app.logger.error(f"Full error response: {error_body}")
+            except Exception:
+                error_msg = str(e)
+                current_app.logger.error(f"Avatar IV generation HTTP error: {error_msg}")
+            raise ValueError(f"Avatar IV generation failed: {error_msg}")
+            
+        except Exception as e:
+            current_app.logger.error(f"Avatar IV generation error: {str(e)}")
+            raise
+    
+    @staticmethod
+    def get_video_status(video_id: str) -> Dict:
+        """
+        Check Avatar IV video generation status
+        
+        Args:
+            video_id: Video ID from generate_avatar_iv_video
+            
+        Returns:
+            Dict with status and video_url (if completed)
+        """
+        api_key = current_app.config.get('HEYGEN_API_KEY')
+        if not api_key:
+            raise ValueError("HEYGEN_API_KEY not configured")
+        
+        try:
+            current_app.logger.info(f"Checking Avatar IV video status: {video_id}")
+            
+            headers = {
+                'X-Api-Key': api_key
+            }
+            
+            response = requests.get(
+                f"{HeyGenHelper.BASE_URL}/v1/video_status.get",
+                headers=headers,
+                params={'video_id': video_id},
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            data = response.json().get('data', {})
+            status = data.get('status', 'unknown')
+            
+            current_app.logger.info(f"Avatar IV video status: {status}")
+            
+            if status == 'completed':
+                video_url = data.get('video_url')
+                
+                if not video_url:
+                    current_app.logger.error("No video URL in completed response")
+                    return {'status': 'error', 'error': 'No video URL in response'}
+                
+                current_app.logger.info(f"Avatar IV generation completed: {video_url}")
+                return {
+                    'status': 'completed',
+                    'video_url': video_url
+                }
+            
+            elif status in ['pending', 'processing']:
+                current_app.logger.info(f"Avatar IV generation in progress: {status}")
+                return {'status': 'processing'}
+            
+            elif status == 'failed':
+                error_msg = data.get('error', 'Video generation failed')
+                current_app.logger.error(f"Avatar IV generation failed: {error_msg}")
+                return {'status': 'error', 'error': error_msg}
+            
+            else:
+                current_app.logger.warning(f"Unknown Avatar IV status: {status}")
+                return {'status': 'processing'}
+                
+        except Exception as e:
+            current_app.logger.error(f"Avatar IV status check error: {str(e)}")
             return {
                 'status': 'error',
                 'error': str(e)
