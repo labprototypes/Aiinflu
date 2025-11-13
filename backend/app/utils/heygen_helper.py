@@ -149,13 +149,13 @@ class HeyGenHelper:
     @staticmethod
     def upload_audio_asset(audio_url: str) -> str:
         """
-        Upload an audio asset to HeyGen and get audio_asset_id
+        Upload an audio asset to HeyGen and get audio URL
         
         Args:
             audio_url: URL to the audio file (must be publicly accessible)
             
         Returns:
-            audio_asset_id for Avatar IV generation
+            audio_url from HeyGen (for Avatar IV generation)
         """
         api_key = current_app.config.get('HEYGEN_API_KEY')
         if not api_key:
@@ -202,14 +202,14 @@ class HeyGenHelper:
                 current_app.logger.error(f"HeyGen API error: {error_msg}")
                 raise RuntimeError(f"HeyGen API error ({response.status_code}): {error_msg}")
             
-            # Get asset_id from response (HeyGen returns 'id' for audio assets)
-            audio_asset_id = result.get('data', {}).get('id') or result.get('data', {}).get('asset_id')
+            # Get audio URL from response (HeyGen returns 'url' for uploaded assets)
+            audio_url = result.get('data', {}).get('url')
             
-            if not audio_asset_id:
-                raise ValueError(f"No id or asset_id in HeyGen audio upload response: {result}")
+            if not audio_url:
+                raise ValueError(f"No url in HeyGen audio upload response: {result}")
             
-            current_app.logger.info(f"Audio asset uploaded successfully: {audio_asset_id}")
-            return audio_asset_id
+            current_app.logger.info(f"Audio asset uploaded successfully, URL: {audio_url}")
+            return audio_url
             
         except Exception as e:
             current_app.logger.error(f"Failed to upload audio asset: {str(e)}")
@@ -965,7 +965,7 @@ class HeyGenHelper:
     @staticmethod
     def generate_avatar_iv_video(
         image_key: str,
-        audio_asset_id: str,
+        audio_url: str,
         video_title: str = "Avatar IV Video"
     ) -> str:
         """
@@ -973,7 +973,7 @@ class HeyGenHelper:
         
         Args:
             image_key: Asset ID from upload_asset (9:16 image)
-            audio_asset_id: Asset ID from upload_asset (audio file)
+            audio_url: Audio URL from upload_audio_asset
             video_title: Title for the video
             
         Returns:
@@ -987,7 +987,7 @@ class HeyGenHelper:
             # Get required voice_id (even though we use custom audio)
             voice_id = HeyGenHelper.get_default_voice_id()
             
-            current_app.logger.info(f"Generating Avatar IV video with image_key={image_key}, audio_asset_id={audio_asset_id}")
+            current_app.logger.info(f"Generating Avatar IV video with image_key={image_key}, audio_url={audio_url[:100]}...")
             
             headers = {
                 'X-Api-Key': api_key,
@@ -999,7 +999,7 @@ class HeyGenHelper:
                 "video_title": video_title,
                 "video_orientation": "portrait",  # 9:16 vertical format
                 "voice_id": voice_id,
-                "audio_asset_id": audio_asset_id
+                "audio_url": audio_url  # Use audio_url instead of audio_asset_id
             }
             
             current_app.logger.info(f"Avatar IV request payload: {payload}")

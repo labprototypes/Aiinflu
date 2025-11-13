@@ -353,8 +353,8 @@ def generate_avatar_video(project_id):
         
         # Step 2: Upload audio asset
         current_app.logger.info("Step 2: Uploading audio asset...")
-        audio_asset_id = HeyGenHelper.upload_audio_asset(fresh_audio_url)
-        current_app.logger.info(f"Audio asset uploaded: {audio_asset_id}")
+        audio_url = HeyGenHelper.upload_audio_asset(fresh_audio_url)
+        current_app.logger.info(f"Audio asset uploaded: {audio_url}")
         
         # Step 3: Generate Avatar IV video
         video_title = f"{project.blogger.name} - {selected_location_name}"
@@ -362,7 +362,7 @@ def generate_avatar_video(project_id):
         
         video_id = HeyGenHelper.generate_avatar_iv_video(
             image_key=image_key,
-            audio_asset_id=audio_asset_id,
+            audio_url=audio_url,
             video_title=video_title
         )
         
@@ -372,7 +372,7 @@ def generate_avatar_video(project_id):
         project.avatar_generation_params = {
             'video_id': video_id,
             'image_key': image_key,
-            'audio_asset_id': audio_asset_id,
+            'audio_url': audio_url,
             'video_title': video_title,
             'location': selected_location_name,
             'mode': 'avatar_iv'
