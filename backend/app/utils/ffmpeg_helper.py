@@ -417,10 +417,14 @@ class FFmpegHelper:
     def _calculate_optimal_chunk_size(words: list) -> int:
         """
         Calculate optimal number of words for a subtitle chunk.
-        Aims for 3-6 words, with smart rules:
+        STRICT RULE: Maximum 2 lines, each line max 28 characters.
+        Aims for 3-5 words to ensure it fits in 1-2 lines.
+        
+        Rules:
         - New sentence = new subtitle screen
         - Don't break movie titles in quotes
         - No hanging prepositions or conjunctions
+        - NEVER create chunks longer than ~56 characters (2 lines × 28 chars)
         """
         if len(words) == 0:
             return 0
@@ -431,6 +435,8 @@ class FFmpegHelper:
                        'не', 'ни', 'ли', 'же', 'бы', 'это', 'эта', 'этот', 'эти', 'тот', 'та', 'то', 'те',
                        '—', '-'}
         
+        MAX_CHUNK_LENGTH = 56  # 2 lines × 28 characters
+        
         # Start with default chunk size
         if len(words) <= 3:
             # Check if there's a sentence end
@@ -440,24 +446,34 @@ class FFmpegHelper:
             return len(words)
         
         # Check for quoted text (movie titles) - don't break them
-        text = ' '.join(words[:min(10, len(words))])
+        text = ' '.join(words[:min(8, len(words))])
         if '"' in text or '«' in text or '"' in text:
             # Find matching closing quote
-            for i, word in enumerate(words[:min(10, len(words))]):
+            for i, word in enumerate(words[:min(8, len(words))]):
                 if '"' in word or '»' in word or '"' in word:
                     # Include everything up to and including the closing quote
                     if i < len(words) - 1:
-                        return min(i + 2, len(words))  # Quote + next word
+                        chunk_candidate = ' '.join(words[:i+2])
+                        if len(chunk_candidate) <= MAX_CHUNK_LENGTH:
+                            return min(i + 2, len(words))
         
         # Priority 1: Break at sentence boundaries (. ! ?)
-        for i in range(3, min(7, len(words))):
+        for i in range(3, min(6, len(words))):
             if words[i-1].endswith(('.', '!', '?')):
-                return i
+                chunk_candidate = ' '.join(words[:i])
+                if len(chunk_candidate) <= MAX_CHUNK_LENGTH:
+                    return i
         
-        # Priority 2: Try 4-6 words without breaking rules
-        for size in [5, 4, 6, 3]:
+        # Priority 2: Try 3-5 words without breaking rules
+        for size in [4, 3, 5]:
             if size > len(words):
                 continue
+            
+            chunk_candidate = ' '.join(words[:size])
+            
+            # CRITICAL: Check if chunk fits in 2 lines (max 56 chars)
+            if len(chunk_candidate) > MAX_CHUNK_LENGTH:
+                continue  # Too long, skip this size
             
             # Check if last word of chunk is non-breaking
             last_word = words[size - 1].lower().strip('.,!?;:"«»""')
@@ -472,33 +488,55 @@ class FFmpegHelper:
                 continue
             
             # Don't break if we're in the middle of quoted text
-            chunk_text = ' '.join(words[:size])
-            remaining_text = ' '.join(words[size:]) if size < len(words) else ''
-            open_quotes = chunk_text.count('"') + chunk_text.count('«') + chunk_text.count('"')
-            close_quotes = chunk_text.count('"') + chunk_text.count('»') + chunk_text.count('"')
+            open_quotes = chunk_candidate.count('"') + chunk_candidate.count('«') + chunk_candidate.count('"')
+            close_quotes = chunk_candidate.count('"') + chunk_candidate.count('»') + chunk_candidate.count('"')
             if open_quotes > close_quotes:
                 continue  # Don't break in middle of quoted text
             
             return size
         
-        # Fallback
-        return min(4, len(words))
+        # Fallback: use smallest safe size that fits in 2 lines
+        for size in range(3, 0, -1):
+            if size <= len(words):
+                chunk_candidate = ' '.join(words[:size])
+                if len(chunk_candidate) <= MAX_CHUNK_LENGTH:
+                    return size
+        
+        return 1  # Absolute fallback
     
     @staticmethod
     def _smart_split_short_subtitle(text: str, max_chars_per_line: int = 28) -> str:
         """
         Smart text splitting for TikTok-style subtitles.
-        Maximum 2 lines, ~28 characters per line.
+        STRICT: Maximum 2 lines, ~28 characters per line.
+        NEVER returns more than 2 lines.
         
         Rules:
         - Don't break movie titles in quotes
         - No hanging prepositions/conjunctions/dashes
         - Break at natural pause points
         - Keep sentence endings intact
+        - If text is too long for 2 lines, it should have been split earlier in chunk calculation
         """
         # If text fits in one line, return as is
         if len(text) <= max_chars_per_line:
             return text
+        
+        # CRITICAL: If text is too long for 2 lines, force truncate or aggressive split
+        MAX_TOTAL_LENGTH = max_chars_per_line * 2  # 56 characters max
+        if len(text) > MAX_TOTAL_LENGTH * 1.2:  # Allow slight overflow
+            current_app.logger.warning(f"Subtitle too long ({len(text)} chars): {text[:50]}...")
+            # Force split at middle
+            words = text.split()
+            mid = len(words) // 2
+            line1 = ' '.join(words[:mid])
+            line2 = ' '.join(words[mid:])
+            # Truncate if still too long
+            if len(line1) > max_chars_per_line * 1.2:
+                line1 = line1[:int(max_chars_per_line * 1.2)]
+            if len(line2) > max_chars_per_line * 1.2:
+                line2 = line2[:int(max_chars_per_line * 1.2)]
+            return f"{line1}\n{line2}"
         
         # List of words that should not end a line
         non_breaking_words = {
