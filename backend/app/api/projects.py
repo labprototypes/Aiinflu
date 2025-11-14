@@ -438,11 +438,11 @@ def auto_build(project_id):
                     fresh_image_url = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
         
         image_key = HeyGenHelper.upload_asset(fresh_image_url)
-        audio_key = HeyGenHelper.upload_asset(fresh_audio_url)
+        audio_url = HeyGenHelper.upload_audio_asset(fresh_audio_url)
         
         response = HeyGenHelper.create_infinitalk_video(
             image_key=image_key,
-            audio_key=audio_key,
+            audio_url=audio_url,
             expression_scale=1.0,
             face_enhance=True
         )

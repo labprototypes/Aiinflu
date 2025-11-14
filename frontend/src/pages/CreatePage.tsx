@@ -129,8 +129,8 @@ export default function CreatePage() {
 
   const autoBuildMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Switch to Step 6 immediately and show progress
-      setViewStep(6)
+      // Switch to Step 7 (Auto mode) immediately and show progress
+      setViewStep(7)
       setAutoBuildProgress({
         extractText: 'pending',
         analyzeMaterials: '',
@@ -141,26 +141,38 @@ export default function CreatePage() {
       })
       setAutoBuildStage('Извлечение текста из сценария...')
       
-      // Simulate progress updates (since backend does everything in one call)
-      setTimeout(() => {
+      // Simulate progress updates + refresh project data
+      setTimeout(async () => {
         setAutoBuildProgress(prev => ({ ...prev, extractText: 'done', analyzeMaterials: 'pending' }))
         setAutoBuildStage('Анализ материалов с помощью GPT Vision...')
+        // Refresh project data
+        const proj = await projectsApi.getById(id)
+        setCurrentProject(proj.data)
       }, 2000)
       
-      setTimeout(() => {
+      setTimeout(async () => {
         setAutoBuildProgress(prev => ({ ...prev, analyzeMaterials: 'done', generateAudio: 'pending' }))
         setAutoBuildStage('Генерация аудио с ElevenLabs...')
+        // Refresh project data
+        const proj = await projectsApi.getById(id)
+        setCurrentProject(proj.data)
       }, 4000)
       
-      setTimeout(() => {
+      setTimeout(async () => {
         setAutoBuildProgress(prev => ({ ...prev, generateAudio: 'done', generateTimeline: 'pending' }))
         setAutoBuildStage('Создание таймлайна видео...')
-      }, 6000)
+        // Refresh project data
+        const proj = await projectsApi.getById(id)
+        setCurrentProject(proj.data)
+      }, 8000)
       
-      setTimeout(() => {
+      setTimeout(async () => {
         setAutoBuildProgress(prev => ({ ...prev, generateTimeline: 'done', generateAvatar: 'pending' }))
         setAutoBuildStage('Генерация аватар видео с HeyGen...')
-      }, 8000)
+        // Refresh project data
+        const proj = await projectsApi.getById(id)
+        setCurrentProject(proj.data)
+      }, 12000)
       
       return projectsApi.autoBuild(id)
     },
@@ -1168,8 +1180,8 @@ export default function CreatePage() {
             )}
           </div>
 
-          {/* Step 6: Auto-Build Progress (when running auto-build) */}
-          {viewStep === 6 && !autoBuildProgress.complete && (
+          {/* Step 7: Auto-Build Progress (Auto mode) */}
+          {viewStep === 7 && (
             <div className="glass-card p-8">
               <h3 className="text-xl font-bold mb-6 text-center">🤖 Автоматическая сборка видео</h3>
               
@@ -1303,12 +1315,61 @@ export default function CreatePage() {
                     </button>
                   </div>
                 )}
+                
+                {/* Navigation to other steps */}
+                <div className="mt-6 p-4 bg-white/5 rounded-lg">
+                  <p className="text-sm text-white/70 mb-3">Вы можете переключиться на любой этап для просмотра промежуточных результатов:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setViewStep(1)}
+                      className="btn-secondary text-sm px-3 py-2"
+                      disabled={!currentProject.scenario_text}
+                    >
+                      Этап 1: Сценарий
+                    </button>
+                    <button
+                      onClick={() => setViewStep(2)}
+                      className="btn-secondary text-sm px-3 py-2"
+                      disabled={!currentProject.voiceover_text}
+                    >
+                      Этап 2: Текст озвучки
+                    </button>
+                    <button
+                      onClick={() => setViewStep(3)}
+                      className="btn-secondary text-sm px-3 py-2"
+                      disabled={!currentProject.audio_url}
+                    >
+                      Этап 3: Аудио
+                    </button>
+                    <button
+                      onClick={() => setViewStep(4)}
+                      className="btn-secondary text-sm px-3 py-2"
+                      disabled={!currentProject.timeline}
+                    >
+                      Этап 4: Таймлайн
+                    </button>
+                    <button
+                      onClick={() => setViewStep(5)}
+                      className="btn-secondary text-sm px-3 py-2"
+                      disabled={!currentProject.avatar_video_url}
+                    >
+                      Этап 5: Аватар видео
+                    </button>
+                    <button
+                      onClick={() => setViewStep(6)}
+                      className="btn-secondary text-sm px-3 py-2"
+                      disabled={!currentProject.avatar_video_url}
+                    >
+                      Этап 6: Финальное видео
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* Step 6: Final Composition */}
-          {displayStep >= 6 && currentProject.avatar_video_url && viewStep !== 6 && (
+          {displayStep >= 6 && currentProject.avatar_video_url && viewStep !== 7 && (
             <div className="glass-card p-8">
               <h3 className="text-xl font-bold mb-4">Этап 6: Финальный монтаж</h3>
 
