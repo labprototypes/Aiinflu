@@ -101,6 +101,10 @@ export default function CreatePage() {
       setCurrentProject(response.data.project)
       setAnalyzeStatus('done')
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      // Auto-advance to Step 2
+      setTimeout(() => {
+        changeStepMutation.mutate({ id: response.data.project.id, step: 2 })
+      }, 1000)
     },
   })
 
@@ -134,6 +138,10 @@ export default function CreatePage() {
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      // Auto-advance to Step 3
+      setTimeout(() => {
+        changeStepMutation.mutate({ id: response.data.project.id, step: 3 })
+      }, 1000)
     },
     onError: (error) => {
       console.error('Audio generation failed:', error)
@@ -177,6 +185,11 @@ export default function CreatePage() {
     mutationFn: (id: string) => projectsApi.generateTimeline(id),
     onSuccess: (response) => {
       setCurrentProject(response.data.project)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      // Auto-advance to Step 5
+      setTimeout(() => {
+        changeStepMutation.mutate({ id: response.data.project.id, step: 5 })
+      }, 1000)
     },
   })
 
@@ -442,6 +455,56 @@ export default function CreatePage() {
         <h2 className="text-3xl font-bold mb-2">Создание контента</h2>
         <p className="text-white/60">6-этапный процесс создания видео с AI</p>
       </div>
+
+      {/* Project Info Panel */}
+      {currentProject && (
+        <div className="glass-card p-6 mb-6">
+          <div className="flex flex-wrap items-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-white/60">👤 Блогер:</span>
+              <span className="font-semibold">{currentProject.blogger?.name || 'Не выбран'}</span>
+            </div>
+            
+            {currentProject.location_id !== null && currentProject.blogger?.locations && (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60">📍 Локация:</span>
+                <span className="font-semibold">
+                  {currentProject.blogger.locations[currentProject.location_id]?.name || 'Frontal'}
+                </span>
+              </div>
+            )}
+            
+            {currentProject.audio_alignment?.audio_duration && (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60">⏱️ Длительность:</span>
+                <span className="font-semibold">{currentProject.audio_alignment.audio_duration.toFixed(1)}с</span>
+              </div>
+            )}
+            
+            {currentProject.materials && (
+              <div className="flex items-center gap-2">
+                <span className="text-white/60">🎬 Материалов:</span>
+                <span className="font-semibold">{currentProject.materials.length}</span>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-white/60">Статус:</span>
+              {currentProject.final_video_url ? (
+                <span className="px-3 py-1 bg-green-600/20 text-green-400 rounded-full font-semibold">✓ Готово</span>
+              ) : currentProject.avatar_video_url ? (
+                <span className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded-full font-semibold">🎥 Видео</span>
+              ) : currentProject.timeline ? (
+                <span className="px-3 py-1 bg-purple-600/20 text-purple-400 rounded-full font-semibold">📋 Тайминги</span>
+              ) : currentProject.audio_url ? (
+                <span className="px-3 py-1 bg-yellow-600/20 text-yellow-400 rounded-full font-semibold">🎵 Аудио</span>
+              ) : (
+                <span className="px-3 py-1 bg-gray-600/20 text-gray-400 rounded-full font-semibold">📝 Подготовка</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stepper */}
       {currentProject && (
