@@ -726,10 +726,45 @@ export default function CreatePage() {
         <div className="glass-card p-8 mb-6">
           <h3 className="text-xl font-bold mb-4">Этап 2: Текст для озвучки</h3>
           
+          {/* Helper text with audio tags info */}
+          <div className="mb-3 p-3 bg-blue-600/10 rounded-lg text-sm">
+            <p className="text-white/80 mb-2">💡 Доступные аудио-теги для выразительности:</p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="px-2 py-1 bg-yellow-600/20 text-yellow-300 rounded">[excited]</span>
+              <span className="px-2 py-1 bg-green-600/20 text-green-300 rounded">[happy]</span>
+              <span className="px-2 py-1 bg-blue-600/20 text-blue-300 rounded">[thoughtful]</span>
+              <span className="px-2 py-1 bg-purple-600/20 text-purple-300 rounded">[surprised]</span>
+              <span className="px-2 py-1 bg-red-600/20 text-red-300 rounded">[fast]</span>
+              <span className="px-2 py-1 bg-orange-600/20 text-orange-300 rounded">[slow]</span>
+            </div>
+          </div>
+          
+          {/* Preview with highlighted tags */}
+          <div className="mb-4 p-4 bg-white/5 rounded-lg min-h-[150px] whitespace-pre-wrap">
+            {voiceoverText.split(/(\[[\w\s]+\])/).map((part, i) => {
+              if (part.match(/\[(excited|happy)\]/)) {
+                return <span key={i} className="text-yellow-400 font-semibold">{part}</span>
+              } else if (part.match(/\[(thoughtful|curious)\]/)) {
+                return <span key={i} className="text-blue-400 font-semibold">{part}</span>
+              } else if (part.match(/\[(surprised|annoyed)\]/)) {
+                return <span key={i} className="text-purple-400 font-semibold">{part}</span>
+              } else if (part.match(/\[(fast|quickly)\]/)) {
+                return <span key={i} className="text-red-400 font-semibold">{part}</span>
+              } else if (part.match(/\[(slow|measured)\]/)) {
+                return <span key={i} className="text-orange-400 font-semibold">{part}</span>
+              } else if (part.match(/\[[\w\s]+\]/)) {
+                return <span key={i} className="text-green-400 font-semibold">{part}</span>
+              }
+              return <span key={i}>{part}</span>
+            })}
+          </div>
+          
+          {/* Editable textarea */}
           <textarea
             value={voiceoverText}
             onChange={(e) => setVoiceoverText(e.target.value)}
             className="input-glass min-h-[200px] resize-none mb-4"
+            placeholder="Отредактируйте текст и добавьте audio-теги для выразительности..."
           />
           
           {!currentProject.audio_url ? (
