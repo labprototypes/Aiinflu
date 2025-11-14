@@ -168,18 +168,32 @@ def extract_and_analyze(project_id):
         analysis_results = []
         if project.materials and len(project.materials) > 0:
             current_app.logger.info(f"Analyzing {len(project.materials)} materials")
+            current_app.logger.info(f"Materials BEFORE analysis: {project.materials}")
             
             image_urls = [mat.get('url') for mat in project.materials if mat.get('url')]
             
             if image_urls:
+                current_app.logger.info(f"Sending {len(image_urls)} URLs to Vision API")
                 analysis_results = gpt_helper.analyze_materials_with_vision(image_urls)
+                current_app.logger.info(f"Vision API returned {len(analysis_results)} results")
                 
-                # Update materials with analysis results
-                for i, material in enumerate(project.materials):
-                    if i < len(analysis_results):
-                        material['analysis'] = analysis_results[i].get('analysis')
+                # Create URL -> analysis mapping
+                url_to_analysis = {result['url']: result.get('analysis') for result in analysis_results}
+                current_app.logger.info(f"URL to analysis mapping: {url_to_analysis}")
                 
-                project.materials = project.materials.copy()  # Trigger SQLAlchemy update
+                # IMPORTANT: Create new list to trigger SQLAlchemy update for JSON field
+                updated_materials = []
+                for mat in project.materials:
+                    mat_copy = dict(mat)
+                    mat_url = mat.get('url')
+                    if mat_url in url_to_analysis:
+                        mat_copy['analysis'] = url_to_analysis[mat_url]
+                        current_app.logger.info(f"Updated material {mat.get('id')}: {url_to_analysis[mat_url]}")
+                    updated_materials.append(mat_copy)
+                
+                # Convert to list() to ensure PostgreSQL JSON update
+                project.materials = list(updated_materials)
+                current_app.logger.info(f"Materials AFTER analysis: {project.materials}")
                 current_app.logger.info(f"Analysis complete for {len(analysis_results)} materials")
         
         db.session.commit()
@@ -335,15 +349,20 @@ def analyze_materials(project_id):
         # Update materials with analysis
         url_to_analysis = {result['url']: result.get('analysis') for result in analysis_results}
         
+        current_app.logger.info(f"URL to analysis mapping: {url_to_analysis}")
+        
         # IMPORTANT: Create new list to trigger SQLAlchemy update for JSON field
         updated_materials = []
         for mat in project.materials:
             mat_copy = dict(mat)
             if mat.get('type') == 'image' and mat['url'] in url_to_analysis:
                 mat_copy['analysis'] = url_to_analysis[mat['url']]
+                current_app.logger.info(f"Updated material {mat.get('id')}: {url_to_analysis[mat['url']]}")
             updated_materials.append(mat_copy)
         
-        project.materials = updated_materials
+        # Convert to list() to ensure PostgreSQL JSON update
+        project.materials = list(updated_materials)
+        current_app.logger.info(f"Materials after update: {project.materials}")
         db.session.commit()
         
         return jsonify({
