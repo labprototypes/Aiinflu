@@ -1316,53 +1316,11 @@ export default function CreatePage() {
                   </div>
                 )}
                 
-                {/* Navigation to other steps */}
-                <div className="mt-6 p-4 bg-white/5 rounded-lg">
-                  <p className="text-sm text-white/70 mb-3">Вы можете переключиться на любой этап для просмотра промежуточных результатов:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setViewStep(1)}
-                      className="btn-secondary text-sm px-3 py-2"
-                      disabled={!currentProject.scenario_text}
-                    >
-                      Этап 1: Сценарий
-                    </button>
-                    <button
-                      onClick={() => setViewStep(2)}
-                      className="btn-secondary text-sm px-3 py-2"
-                      disabled={!currentProject.voiceover_text}
-                    >
-                      Этап 2: Текст озвучки
-                    </button>
-                    <button
-                      onClick={() => setViewStep(3)}
-                      className="btn-secondary text-sm px-3 py-2"
-                      disabled={!currentProject.audio_url}
-                    >
-                      Этап 3: Аудио
-                    </button>
-                    <button
-                      onClick={() => setViewStep(4)}
-                      className="btn-secondary text-sm px-3 py-2"
-                      disabled={!currentProject.timeline}
-                    >
-                      Этап 4: Таймлайн
-                    </button>
-                    <button
-                      onClick={() => setViewStep(5)}
-                      className="btn-secondary text-sm px-3 py-2"
-                      disabled={!currentProject.avatar_video_url}
-                    >
-                      Этап 5: Аватар видео
-                    </button>
-                    <button
-                      onClick={() => setViewStep(6)}
-                      className="btn-secondary text-sm px-3 py-2"
-                      disabled={!currentProject.avatar_video_url}
-                    >
-                      Этап 6: Финальное видео
-                    </button>
-                  </div>
+                {/* Navigation hint */}
+                <div className="mt-6 p-4 bg-white/5 rounded-lg text-center">
+                  <p className="text-sm text-white/70">
+                    💡 Используйте зелёные кружки сверху для навигации между этапами
+                  </p>
                 </div>
               </div>
             </div>

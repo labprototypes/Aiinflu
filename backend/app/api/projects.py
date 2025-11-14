@@ -380,25 +380,35 @@ def auto_build(project_id):
     
     try:
         current_app.logger.info(f"=== AUTO-BUILD START for project {project_id} ===")
+        current_app.logger.info(f"Project blogger: {project.blogger.name}")
+        current_app.logger.info(f"Scenario length: {len(project.scenario_text)} chars")
+        current_app.logger.info(f"Materials count: {len(project.materials)}")
         
         # Step 1: Extract voiceover text
-        current_app.logger.info("Step 1/5: Extracting voiceover text...")
+        current_app.logger.info("=== STEP 1/5: EXTRACTING VOICEOVER TEXT ===")
         voiceover_text = gpt_helper.extract_voiceover_text(project.scenario_text)
         project.voiceover_text = voiceover_text
-        current_app.logger.info(f"Voiceover extracted: {len(voiceover_text)} chars")
+        current_app.logger.info(f"✓ Voiceover extracted: {len(voiceover_text)} chars")
+        current_app.logger.info(f"Preview: {voiceover_text[:200]}...")
+        db.session.commit()
         
         # Step 2: Analyze materials
-        current_app.logger.info("Step 2/5: Analyzing materials...")
+        current_app.logger.info("=== STEP 2/5: ANALYZING MATERIALS WITH GPT VISION ===")
         image_urls = [mat.get('url') for mat in project.materials if mat.get('url')]
+        current_app.logger.info(f"Analyzing {len(image_urls)} images...")
         analysis_results = gpt_helper.analyze_materials_with_vision(image_urls)
         for i, material in enumerate(project.materials):
             if i < len(analysis_results):
-                material['analysis'] = analysis_results[i].get('analysis')
+                analysis = analysis_results[i].get('analysis')
+                material['analysis'] = analysis
+                current_app.logger.info(f"  Material {i+1}: {analysis}")
         project.materials = project.materials.copy()
-        current_app.logger.info(f"Analysis complete for {len(analysis_results)} materials")
+        current_app.logger.info(f"✓ Analysis complete for {len(analysis_results)} materials")
+        db.session.commit()
         
         # Step 3: Generate audio
-        current_app.logger.info("Step 3/5: Generating audio...")
+        current_app.logger.info("=== STEP 3/5: GENERATING AUDIO WITH ELEVENLABS ===")
+        current_app.logger.info(f"Voice ID: {project.blogger.elevenlabs_voice_id}")
         audio_result = elevenlabs_helper.generate_speech_with_timestamps(
             text=project.voiceover_text,
             voice_id=project.blogger.elevenlabs_voice_id
@@ -408,17 +418,23 @@ def auto_build(project_id):
             'alignment': audio_result.get('alignment'),
             'audio_duration': audio_result.get('audio_duration')
         }
-        current_app.logger.info(f"Audio generated: {audio_result.get('audio_duration')}s")
+        current_app.logger.info(f"✓ Audio generated: {audio_result.get('audio_duration')}s")
+        current_app.logger.info(f"Audio URL: {audio_result['audio_url'][:100]}...")
+        db.session.commit()
         
         # Step 4: Generate timeline
-        current_app.logger.info("Step 4/5: Generating timeline...")
+        current_app.logger.info("=== STEP 4/5: GENERATING VIDEO TIMELINE ===")
+        current_app.logger.info(f"Matching {len(project.materials)} materials to voiceover...")
         timeline = gpt_helper.generate_timeline(
             voiceover_text=project.voiceover_text,
             audio_alignment=project.audio_alignment,
             materials=project.materials
         )
         project.timeline = timeline
-        current_app.logger.info(f"Timeline generated: {len(timeline)} segments")
+        current_app.logger.info(f"✓ Timeline generated: {len(timeline)} segments")
+        for i, segment in enumerate(timeline):
+            current_app.logger.info(f"  Segment {i+1}: {segment['start_time']}s-{segment['end_time']}s -> Material {segment['material_id']}")
+        db.session.commit()
         
         # Step 5: Generate avatar video
         current_app.logger.info("Step 5/5: Generating avatar video...")
@@ -437,17 +453,22 @@ def auto_build(project_id):
                 if location_image_s3:
                     fresh_image_url = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
         
+        current_app.logger.info("=== STEP 5/5: GENERATING AVATAR VIDEO ===")
+        current_app.logger.info(f"Uploading image to HeyGen: {fresh_image_url[:100]}...")
         image_key = HeyGenHelper.upload_asset(fresh_image_url)
-        audio_url = HeyGenHelper.upload_audio_asset(fresh_audio_url)
+        current_app.logger.info(f"Image uploaded successfully, key: {image_key}")
         
-        response = HeyGenHelper.create_infinitalk_video(
+        current_app.logger.info(f"Uploading audio to HeyGen: {fresh_audio_url[:100]}...")
+        audio_url = HeyGenHelper.upload_audio_asset(fresh_audio_url)
+        current_app.logger.info(f"Audio uploaded successfully, url: {audio_url[:100]}...")
+        
+        current_app.logger.info("Creating Avatar IV video with HeyGen...")
+        video_id = HeyGenHelper.generate_avatar_iv_video(
             image_key=image_key,
             audio_url=audio_url,
-            expression_scale=1.0,
-            face_enhance=True
+            video_title=f"Project {project.id}"
         )
-        
-        video_id = response.get('data', {}).get('video_id')
+        current_app.logger.info(f"Avatar IV video generation started, video_id: {video_id}")
         project.avatar_generation_params = {
             'video_id': video_id,
             'status': 'processing',
