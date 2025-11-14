@@ -34,6 +34,25 @@ export default function CreatePage() {
   const [avatarGenStatus, setAvatarGenStatus] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
   const [avatarRequestId, setAvatarRequestId] = useState<string | null>(null)
   const [viewStep, setViewStep] = useState<number | null>(null) // Which step to display (null = use current_step)
+  
+  // Auto-build pipeline stages
+  const [autoBuildStage, setAutoBuildStage] = useState<string>('')
+  const [autoBuildProgress, setAutoBuildProgress] = useState<{
+    extractText: 'pending' | 'done' | 'error' | '',
+    analyzeMaterials: 'pending' | 'done' | 'error' | '',
+    generateAudio: 'pending' | 'done' | 'error' | '',
+    generateTimeline: 'pending' | 'done' | 'error' | '',
+    generateAvatar: 'pending' | 'done' | 'error' | '',
+    complete: boolean
+  }>({
+    extractText: '',
+    analyzeMaterials: '',
+    generateAudio: '',
+    generateTimeline: '',
+    generateAvatar: '',
+    complete: false
+  })
+  
   const queryClient = useQueryClient()
 
   // Load project from navigation state (when continuing from Projects page)
@@ -109,28 +128,72 @@ export default function CreatePage() {
   })
 
   const autoBuildMutation = useMutation({
-    mutationFn: (id: string) => projectsApi.autoBuild(id),
+    mutationFn: async (id: string) => {
+      // Switch to Step 6 immediately and show progress
+      setViewStep(6)
+      setAutoBuildProgress({
+        extractText: 'pending',
+        analyzeMaterials: '',
+        generateAudio: '',
+        generateTimeline: '',
+        generateAvatar: '',
+        complete: false
+      })
+      setAutoBuildStage('Извлечение текста из сценария...')
+      
+      // Simulate progress updates (since backend does everything in one call)
+      setTimeout(() => {
+        setAutoBuildProgress(prev => ({ ...prev, extractText: 'done', analyzeMaterials: 'pending' }))
+        setAutoBuildStage('Анализ материалов с помощью GPT Vision...')
+      }, 2000)
+      
+      setTimeout(() => {
+        setAutoBuildProgress(prev => ({ ...prev, analyzeMaterials: 'done', generateAudio: 'pending' }))
+        setAutoBuildStage('Генерация аудио с ElevenLabs...')
+      }, 4000)
+      
+      setTimeout(() => {
+        setAutoBuildProgress(prev => ({ ...prev, generateAudio: 'done', generateTimeline: 'pending' }))
+        setAutoBuildStage('Создание таймлайна видео...')
+      }, 6000)
+      
+      setTimeout(() => {
+        setAutoBuildProgress(prev => ({ ...prev, generateTimeline: 'done', generateAvatar: 'pending' }))
+        setAutoBuildStage('Генерация аватар видео с HeyGen...')
+      }, 8000)
+      
+      return projectsApi.autoBuild(id)
+    },
     onSuccess: (response) => {
       const videoId = response.data.video_id
       setAvatarRequestId(videoId)
       setAvatarGenStatus('pending')
       setCurrentProject(response.data.project)
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      
       // Start polling for avatar video completion
       if (videoId) {
         const pollInterval = setInterval(async () => {
           const statusResp = await projectsApi.checkAvatarStatus(response.data.project.id, videoId)
           if (statusResp.data.status === 'completed') {
             clearInterval(pollInterval)
+            setAutoBuildProgress(prev => ({ ...prev, generateAvatar: 'done', complete: true }))
+            setAutoBuildStage('✓ Готово! Видео успешно создано')
             setAvatarGenStatus('done')
             queryClient.invalidateQueries({ queryKey: ['projects'] })
           } else if (statusResp.data.status === 'error') {
             clearInterval(pollInterval)
+            setAutoBuildProgress(prev => ({ ...prev, generateAvatar: 'error' }))
+            setAutoBuildStage('Ошибка при генерации видео')
             setAvatarGenStatus('error')
           }
         }, 5000)
       }
     },
+    onError: (error) => {
+      setAutoBuildStage(`Ошибка: ${error.message}`)
+      setAutoBuildProgress(prev => ({ ...prev, complete: true }))
+    }
   })
 
   const generateAudioMutation = useMutation({
@@ -674,46 +737,27 @@ export default function CreatePage() {
               
               <div className="flex gap-3">
                 <button
-                  onClick={handleSaveScenario}
-                  disabled={!scenario || updateScenarioMutation.isPending}
-                  className="btn-secondary"
-                >
-                  Сохранить
-                </button>
-                
-                <button
-                  onClick={handleExtractText}
-                  disabled={!scenario || extractTextMutation.isPending}
+                  onClick={handleExtractAndAnalyze}
+                  disabled={!scenario || extractAndAnalyzeMutation.isPending}
                   className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
-                  {extractTextMutation.isPending && <Loader2 size={20} className="animate-spin" />}
-                  Извлечь текст
+                  {extractAndAnalyzeMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                  <Sparkles size={20} />
+                  Извлечь и проанализировать
                 </button>
                 
                 {currentProject.materials && currentProject.materials.length > 0 && (
-                  <>
-                    <button
-                      onClick={handleExtractAndAnalyze}
-                      disabled={!scenario || extractAndAnalyzeMutation.isPending}
-                      className="btn-primary flex-1 flex items-center justify-center gap-2"
-                    >
-                      {extractAndAnalyzeMutation.isPending && <Loader2 size={20} className="animate-spin" />}
-                      <Sparkles size={20} />
-                      Извлечь и проанализировать
-                    </button>
-                    
-                    <button
-                      onClick={handleAutoBuild}
-                      disabled={!scenario || autoBuildMutation.isPending}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 
-                               text-white px-6 py-3 rounded-lg font-semibold transition-smooth
-                               disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  <button
+                    onClick={handleAutoBuild}
+                    disabled={!scenario || autoBuildMutation.isPending}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 
+                             text-white px-6 py-3 rounded-lg font-semibold transition-smooth
+                             disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {autoBuildMutation.isPending && <Loader2 size={20} className="animate-spin" />}
                       <Sparkles size={20} />
                       Авто-сборка
                     </button>
-                  </>
                 )}
               </div>
             </div>
@@ -1124,8 +1168,147 @@ export default function CreatePage() {
             )}
           </div>
 
+          {/* Step 6: Auto-Build Progress (when running auto-build) */}
+          {viewStep === 6 && !autoBuildProgress.complete && (
+            <div className="glass-card p-8">
+              <h3 className="text-xl font-bold mb-6 text-center">🤖 Автоматическая сборка видео</h3>
+              
+              <div className="max-w-2xl mx-auto space-y-4">
+                {/* Current stage banner */}
+                <div className="p-4 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-3">
+                    <Loader2 size={24} className="animate-spin" />
+                    <span className="text-lg font-semibold">{autoBuildStage}</span>
+                  </div>
+                </div>
+                
+                {/* Progress stages */}
+                <div className="space-y-3">
+                  {/* Stage 1: Extract Text */}
+                  <div className={`p-4 rounded-lg border-2 transition-all ${
+                    autoBuildProgress.extractText === 'done' 
+                      ? 'border-green-500/50 bg-green-500/10' 
+                      : autoBuildProgress.extractText === 'pending'
+                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
+                      : 'border-white/10 bg-white/5'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      {autoBuildProgress.extractText === 'done' ? (
+                        <Check size={20} className="text-green-500" />
+                      ) : autoBuildProgress.extractText === 'pending' ? (
+                        <Loader2 size={20} className="animate-spin text-yellow-500" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
+                      )}
+                      <span className="font-medium">1. Извлечение текста из сценария</span>
+                    </div>
+                  </div>
+                  
+                  {/* Stage 2: Analyze Materials */}
+                  <div className={`p-4 rounded-lg border-2 transition-all ${
+                    autoBuildProgress.analyzeMaterials === 'done' 
+                      ? 'border-green-500/50 bg-green-500/10' 
+                      : autoBuildProgress.analyzeMaterials === 'pending'
+                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
+                      : 'border-white/10 bg-white/5'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      {autoBuildProgress.analyzeMaterials === 'done' ? (
+                        <Check size={20} className="text-green-500" />
+                      ) : autoBuildProgress.analyzeMaterials === 'pending' ? (
+                        <Loader2 size={20} className="animate-spin text-yellow-500" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
+                      )}
+                      <span className="font-medium">2. Анализ материалов (GPT Vision)</span>
+                    </div>
+                  </div>
+                  
+                  {/* Stage 3: Generate Audio */}
+                  <div className={`p-4 rounded-lg border-2 transition-all ${
+                    autoBuildProgress.generateAudio === 'done' 
+                      ? 'border-green-500/50 bg-green-500/10' 
+                      : autoBuildProgress.generateAudio === 'pending'
+                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
+                      : 'border-white/10 bg-white/5'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      {autoBuildProgress.generateAudio === 'done' ? (
+                        <Check size={20} className="text-green-500" />
+                      ) : autoBuildProgress.generateAudio === 'pending' ? (
+                        <Loader2 size={20} className="animate-spin text-yellow-500" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
+                      )}
+                      <span className="font-medium">3. Генерация аудио (ElevenLabs)</span>
+                    </div>
+                  </div>
+                  
+                  {/* Stage 4: Generate Timeline */}
+                  <div className={`p-4 rounded-lg border-2 transition-all ${
+                    autoBuildProgress.generateTimeline === 'done' 
+                      ? 'border-green-500/50 bg-green-500/10' 
+                      : autoBuildProgress.generateTimeline === 'pending'
+                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
+                      : 'border-white/10 bg-white/5'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      {autoBuildProgress.generateTimeline === 'done' ? (
+                        <Check size={20} className="text-green-500" />
+                      ) : autoBuildProgress.generateTimeline === 'pending' ? (
+                        <Loader2 size={20} className="animate-spin text-yellow-500" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
+                      )}
+                      <span className="font-medium">4. Создание таймлайна видео</span>
+                    </div>
+                  </div>
+                  
+                  {/* Stage 5: Generate Avatar */}
+                  <div className={`p-4 rounded-lg border-2 transition-all ${
+                    autoBuildProgress.generateAvatar === 'done' 
+                      ? 'border-green-500/50 bg-green-500/10' 
+                      : autoBuildProgress.generateAvatar === 'pending'
+                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
+                      : 'border-white/10 bg-white/5'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      {autoBuildProgress.generateAvatar === 'done' ? (
+                        <Check size={20} className="text-green-500" />
+                      ) : autoBuildProgress.generateAvatar === 'pending' ? (
+                        <Loader2 size={20} className="animate-spin text-yellow-500" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
+                      )}
+                      <span className="font-medium">5. Генерация аватар видео (HeyGen)</span>
+                    </div>
+                    {autoBuildProgress.generateAvatar === 'pending' && (
+                      <p className="text-sm text-white/60 mt-2 ml-8">
+                        Это может занять 1-3 минуты...
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Success message */}
+                {autoBuildProgress.complete && (
+                  <div className="p-4 bg-green-600/20 rounded-lg text-center mt-6">
+                    <Check size={32} className="mx-auto mb-2 text-green-500" />
+                    <p className="text-lg font-semibold">Видео успешно создано!</p>
+                    <button
+                      onClick={() => setViewStep(null)}
+                      className="btn-primary mt-4"
+                    >
+                      Перейти к результату
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Step 6: Final Composition */}
-          {displayStep >= 6 && currentProject.avatar_video_url && (
+          {displayStep >= 6 && currentProject.avatar_video_url && viewStep !== 6 && (
             <div className="glass-card p-8">
               <h3 className="text-xl font-bold mb-4">Этап 6: Финальный монтаж</h3>
 

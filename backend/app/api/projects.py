@@ -172,7 +172,7 @@ def extract_and_analyze(project_id):
             image_urls = [mat.get('url') for mat in project.materials if mat.get('url')]
             
             if image_urls:
-                analysis_results = gpt_helper.analyze_images(image_urls)
+                analysis_results = gpt_helper.analyze_materials_with_vision(image_urls)
                 
                 # Update materials with analysis results
                 for i, material in enumerate(project.materials):
@@ -390,7 +390,7 @@ def auto_build(project_id):
         # Step 2: Analyze materials
         current_app.logger.info("Step 2/5: Analyzing materials...")
         image_urls = [mat.get('url') for mat in project.materials if mat.get('url')]
-        analysis_results = gpt_helper.analyze_images(image_urls)
+        analysis_results = gpt_helper.analyze_materials_with_vision(image_urls)
         for i, material in enumerate(project.materials):
             if i < len(analysis_results):
                 material['analysis'] = analysis_results[i].get('analysis')
