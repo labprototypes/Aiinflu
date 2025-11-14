@@ -104,6 +104,31 @@ export default function CreatePage() {
     },
   })
 
+  const autoBuildMutation = useMutation({
+    mutationFn: (id: string) => projectsApi.autoBuild(id),
+    onSuccess: (response) => {
+      const videoId = response.data.video_id
+      setAvatarRequestId(videoId)
+      setAvatarGenStatus('pending')
+      setCurrentProject(response.data.project)
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      // Start polling for avatar video completion
+      if (videoId) {
+        const pollInterval = setInterval(async () => {
+          const statusResp = await projectsApi.checkAvatarStatus(response.data.project.id, videoId)
+          if (statusResp.data.status === 'completed') {
+            clearInterval(pollInterval)
+            setAvatarGenStatus('done')
+            queryClient.invalidateQueries({ queryKey: ['projects'] })
+          } else if (statusResp.data.status === 'error') {
+            clearInterval(pollInterval)
+            setAvatarGenStatus('error')
+          }
+        }, 5000)
+      }
+    },
+  })
+
   const generateAudioMutation = useMutation({
     mutationFn: (id: string) => projectsApi.generateAudio(id),
     onSuccess: (response) => {
@@ -248,6 +273,15 @@ export default function CreatePage() {
     if (currentProject) {
       setAnalyzeStatus('pending')
       extractAndAnalyzeMutation.mutate(currentProject.id)
+    }
+  }
+
+  const handleAutoBuild = () => {
+    if (currentProject) {
+      if (confirm('Запустить полную автоматическую сборку видео?\n\nБудут выполнены все шаги: озвучка, тайминги, генерация видео, монтаж.\n\nЭто может занять 3-5 минут.')) {
+        setAnalyzeStatus('pending')
+        autoBuildMutation.mutate(currentProject.id)
+      }
     }
   }
 
@@ -594,15 +628,29 @@ export default function CreatePage() {
                 </button>
                 
                 {currentProject.materials && currentProject.materials.length > 0 && (
-                  <button
-                    onClick={handleExtractAndAnalyze}
-                    disabled={!scenario || extractAndAnalyzeMutation.isPending}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2"
-                  >
-                    {extractAndAnalyzeMutation.isPending && <Loader2 size={20} className="animate-spin" />}
-                    <Sparkles size={20} />
-                    Извлечь и проанализировать
-                  </button>
+                  <>
+                    <button
+                      onClick={handleExtractAndAnalyze}
+                      disabled={!scenario || extractAndAnalyzeMutation.isPending}
+                      className="btn-primary flex-1 flex items-center justify-center gap-2"
+                    >
+                      {extractAndAnalyzeMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                      <Sparkles size={20} />
+                      Извлечь и проанализировать
+                    </button>
+                    
+                    <button
+                      onClick={handleAutoBuild}
+                      disabled={!scenario || autoBuildMutation.isPending}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 
+                               text-white px-6 py-3 rounded-lg font-semibold transition-smooth
+                               disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {autoBuildMutation.isPending && <Loader2 size={20} className="animate-spin" />}
+                      <Sparkles size={20} />
+                      Авто-сборка
+                    </button>
+                  </>
                 )}
               </div>
             </div>

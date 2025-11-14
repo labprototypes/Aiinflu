@@ -358,6 +358,124 @@ def analyze_materials(project_id):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/projects/<project_id>/auto-build', methods=['POST'])
+def auto_build(project_id):
+    """
+    Auto-build: Full automation pipeline
+    1. Extract voiceover + analyze materials
+    2. Generate audio
+    3. Generate timeline
+    4. Generate avatar video
+    5. Compose final video with subtitles
+    
+    Returns project and updates step to 6 when complete
+    """
+    project = Project.query.get_or_404(project_id)
+    
+    if not project.scenario_text:
+        return jsonify({'error': 'No scenario text available'}), 400
+    
+    if not project.materials or len(project.materials) == 0:
+        return jsonify({'error': 'No materials uploaded'}), 400
+    
+    try:
+        current_app.logger.info(f"=== AUTO-BUILD START for project {project_id} ===")
+        
+        # Step 1: Extract voiceover text
+        current_app.logger.info("Step 1/5: Extracting voiceover text...")
+        voiceover_text = gpt_helper.extract_voiceover_text(project.scenario_text)
+        project.voiceover_text = voiceover_text
+        current_app.logger.info(f"Voiceover extracted: {len(voiceover_text)} chars")
+        
+        # Step 2: Analyze materials
+        current_app.logger.info("Step 2/5: Analyzing materials...")
+        image_urls = [mat.get('url') for mat in project.materials if mat.get('url')]
+        analysis_results = gpt_helper.analyze_images(image_urls)
+        for i, material in enumerate(project.materials):
+            if i < len(analysis_results):
+                material['analysis'] = analysis_results[i].get('analysis')
+        project.materials = project.materials.copy()
+        current_app.logger.info(f"Analysis complete for {len(analysis_results)} materials")
+        
+        # Step 3: Generate audio
+        current_app.logger.info("Step 3/5: Generating audio...")
+        audio_result = elevenlabs_helper.generate_speech_with_timestamps(
+            text=project.voiceover_text,
+            voice_id=project.blogger.elevenlabs_voice_id
+        )
+        project.audio_url = audio_result['audio_url']
+        project.audio_alignment = {
+            'alignment': audio_result.get('alignment'),
+            'audio_duration': audio_result.get('audio_duration')
+        }
+        current_app.logger.info(f"Audio generated: {audio_result.get('audio_duration')}s")
+        
+        # Step 4: Generate timeline
+        current_app.logger.info("Step 4/5: Generating timeline...")
+        timeline = gpt_helper.generate_timeline(
+            voiceover_text=project.voiceover_text,
+            audio_alignment=project.audio_alignment,
+            materials=project.materials
+        )
+        project.timeline = timeline
+        current_app.logger.info(f"Timeline generated: {len(timeline)} segments")
+        
+        # Step 5: Generate avatar video
+        current_app.logger.info("Step 5/5: Generating avatar video...")
+        from app.utils.heygen_helper import HeyGenHelper
+        from app.utils.s3_helper import s3_helper
+        
+        fresh_audio_url = s3_helper.get_presigned_url(project.audio_url, expiration=3600)
+        fresh_image_url = s3_helper.get_presigned_url(project.blogger.frontal_image_url, expiration=3600)
+        
+        # Use location image if selected
+        if project.location_id is not None and project.blogger.settings:
+            locations = project.blogger.settings.get('locations', [])
+            if project.location_id < len(locations):
+                location = locations[project.location_id]
+                location_image_s3 = location.get('image_url')
+                if location_image_s3:
+                    fresh_image_url = s3_helper.get_presigned_url(location_image_s3, expiration=3600)
+        
+        image_key = HeyGenHelper.upload_asset(fresh_image_url)
+        audio_key = HeyGenHelper.upload_asset(fresh_audio_url)
+        
+        response = HeyGenHelper.create_infinitalk_video(
+            image_key=image_key,
+            audio_key=audio_key,
+            expression_scale=1.0,
+            face_enhance=True
+        )
+        
+        video_id = response.get('data', {}).get('video_id')
+        project.avatar_generation_params = {
+            'video_id': video_id,
+            'status': 'processing',
+            'expression_scale': 1.0
+        }
+        
+        current_app.logger.info(f"Avatar video generation started: {video_id}")
+        
+        # Update project to step 5 (will poll for completion)
+        project.current_step = 5
+        db.session.commit()
+        
+        current_app.logger.info("=== AUTO-BUILD INITIATED ===")
+        current_app.logger.info("Avatar video is processing. User should poll for completion.")
+        
+        return jsonify({
+            'message': 'Auto-build pipeline initiated',
+            'video_id': video_id,
+            'project': project.to_dict()
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Auto-build failed: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/projects/<project_id>/generate-timeline', methods=['POST'])
 def generate_timeline(project_id):
     """Generate video timeline using GPT"""

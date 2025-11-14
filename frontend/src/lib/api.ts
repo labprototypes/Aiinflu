@@ -41,6 +41,7 @@ export const projectsApi = {
   delete: (id: string) => api.delete(`/projects/${id}`),
   extractText: (id: string) => api.post(`/projects/${id}/extract-text`),
   extractAndAnalyze: (id: string) => api.post(`/projects/${id}/extract-and-analyze`),
+  autoBuild: (id: string) => api.post(`/projects/${id}/auto-build`),
   generateAudio: (id: string) => api.post(`/projects/${id}/generate-audio`),
   uploadMaterial: (id: string, file: File, type: string) => {
     const formData = new FormData()
