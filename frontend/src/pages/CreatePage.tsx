@@ -11,12 +11,16 @@ import LocationSelector from '@/components/LocationSelector'
 
 const STEPS = [
   { number: 1, title: 'Подготовка' },
-  { number: 2, title: 'Озвучка' },
-  { number: 3, title: 'Материалы' },
-  { number: 4, title: 'Тайминги' },
-  { number: 5, title: 'Генерация' },
-  { number: 6, title: 'Монтаж' },
+  { number: 2, title: 'Озвучка и тайминги' },
+  { number: 3, title: 'Генерация и монтаж' },
 ]
+
+// Map old backend steps (1-6) to new UI steps (1-3)
+const mapBackendStepToUI = (backendStep: number): number => {
+  if (backendStep <= 1) return 1 // Preparation
+  if (backendStep <= 4) return 2 // Voiceover + Timeline (steps 2,3,4)
+  return 3 // Generation + Composition (steps 5,6)
+}
 
 export default function CreatePage() {
   const location = useLocation()
@@ -519,16 +523,17 @@ export default function CreatePage() {
     }
   }
 
-  // Displayed step: use viewStep if set, otherwise use current_step from project
-  const displayStep = viewStep !== null ? viewStep : (currentProject?.current_step || 0)
-  // Maximum reached step (from DB)
-  const maxStep = currentProject?.current_step || 0
+  // Displayed step: use viewStep if set, otherwise map backend step to UI step
+  const backendStep = currentProject?.current_step || 0
+  const displayStep = viewStep !== null ? viewStep : (viewStep === 7 ? 7 : mapBackendStepToUI(backendStep))
+  // Maximum reached step (in UI terms)
+  const maxStep = mapBackendStepToUI(backendStep)
 
   return (
     <div className="animate-fade-in">
       <div className="mb-8">
         <h2 className="text-3xl font-bold mb-2">Создание контента</h2>
-        <p className="text-white/60">6-этапный процесс создания видео с AI</p>
+        <p className="text-white/60">3-этапный процесс создания видео с AI</p>
       </div>
 
       {/* Project Info Panel */}
@@ -578,6 +583,36 @@ export default function CreatePage() {
               )}
             </div>
           </div>
+          
+          {/* Auto-build progress bar (when running) */}
+          {viewStep === 7 && !autoBuildProgress.complete && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="flex items-center gap-3 mb-2">
+                <Loader2 size={16} className="animate-spin text-blue-400" />
+                <span className="text-sm font-medium">{autoBuildStage}</span>
+              </div>
+              <div className="flex gap-2">
+                {[
+                  { key: 'extractText', label: 'Текст' },
+                  { key: 'analyzeMaterials', label: 'Анализ' },
+                  { key: 'generateAudio', label: 'Аудио' },
+                  { key: 'generateTimeline', label: 'Таймлайн' },
+                  { key: 'generateAvatar', label: 'Видео' }
+                ].map((stage) => (
+                  <div key={stage.key} className="flex-1">
+                    <div className={`h-2 rounded-full transition-all ${
+                      autoBuildProgress[stage.key as keyof typeof autoBuildProgress] === 'done'
+                        ? 'bg-green-500'
+                        : autoBuildProgress[stage.key as keyof typeof autoBuildProgress] === 'pending'
+                        ? 'bg-yellow-500 animate-pulse'
+                        : 'bg-white/10'
+                    }`} />
+                    <span className="text-xs text-white/60 mt-1 block text-center">{stage.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
