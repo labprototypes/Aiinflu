@@ -1146,7 +1146,7 @@ export default function CreatePage() {
                     className="btn-primary w-full flex items-center justify-center gap-2"
                   >
                     {composeFinalMutation.isPending && <Loader2 size={20} className="animate-spin" />}
-                    Создать финальное видео (FFmpeg)
+                    Монтаж с материалами
                   </button>
 
                   {composeFinalMutation.isPending && (
