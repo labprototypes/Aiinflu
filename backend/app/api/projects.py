@@ -394,15 +394,22 @@ def auto_build(project_id):
         
         # Step 2: Analyze materials
         current_app.logger.info("=== STEP 2/5: ANALYZING MATERIALS WITH GPT VISION ===")
+        current_app.logger.info(f"Materials BEFORE analysis: {project.materials}")
         image_urls = [mat.get('url') for mat in project.materials if mat.get('url')]
         current_app.logger.info(f"Analyzing {len(image_urls)} images...")
         analysis_results = gpt_helper.analyze_materials_with_vision(image_urls)
+        current_app.logger.info(f"GPT Vision returned {len(analysis_results)} results")
+        
+        # Update materials with analysis
         for i, material in enumerate(project.materials):
             if i < len(analysis_results):
                 analysis = analysis_results[i].get('analysis')
                 material['analysis'] = analysis
-                current_app.logger.info(f"  Material {i+1}: {analysis}")
-        project.materials = project.materials.copy()
+                current_app.logger.info(f"  Material {i+1} (ID: {material.get('id')}): {analysis}")
+        
+        # ВАЖНО: Для PostgreSQL JSON нужен новый объект
+        project.materials = list(project.materials)
+        current_app.logger.info(f"Materials AFTER analysis: {project.materials}")
         current_app.logger.info(f"✓ Analysis complete for {len(analysis_results)} materials")
         db.session.commit()
         
@@ -425,6 +432,7 @@ def auto_build(project_id):
         # Step 4: Generate timeline
         current_app.logger.info("=== STEP 4/5: GENERATING VIDEO TIMELINE ===")
         current_app.logger.info(f"Matching {len(project.materials)} materials to voiceover...")
+        current_app.logger.info(f"Materials for timeline: {[(m.get('id'), m.get('analysis')) for m in project.materials]}")
         timeline = gpt_helper.generate_timeline(
             voiceover_text=project.voiceover_text,
             audio_alignment=project.audio_alignment,
@@ -433,7 +441,7 @@ def auto_build(project_id):
         project.timeline = timeline
         current_app.logger.info(f"✓ Timeline generated: {len(timeline)} segments")
         for i, segment in enumerate(timeline):
-            current_app.logger.info(f"  Segment {i+1}: {segment['start_time']}s-{segment['end_time']}s -> Material {segment['material_id']}")
+            current_app.logger.info(f"  Segment {i+1}: {segment['start_time']}s-{segment['end_time']}s -> Material {segment['material_id']} ({segment.get('text_snippet', '')[:50]}...)")
         db.session.commit()
         
         # Step 5: Generate avatar video

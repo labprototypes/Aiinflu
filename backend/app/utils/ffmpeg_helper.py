@@ -417,28 +417,51 @@ class FFmpegHelper:
     def _calculate_optimal_chunk_size(words: list) -> int:
         """
         Calculate optimal number of words for a subtitle chunk.
-        Aims for 3-6 words, avoiding orphaned short words.
+        Aims for 3-6 words, with smart rules:
+        - New sentence = new subtitle screen
+        - Don't break movie titles in quotes
+        - No hanging prepositions or conjunctions
         """
         if len(words) == 0:
             return 0
         
         # Non-breaking words that should not end a chunk
         non_breaking = {'в', 'на', 'с', 'к', 'у', 'о', 'об', 'по', 'за', 'из', 'до', 'для', 'без', 'от', 'при', 'про', 'под',
-                       'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда',
-                       'не', 'ни', 'ли', 'же', 'бы', 'это', 'эта', 'этот', 'эти', 'тот'}
+                       'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда', 'хотя',
+                       'не', 'ни', 'ли', 'же', 'бы', 'это', 'эта', 'этот', 'эти', 'тот', 'та', 'то', 'те',
+                       '—', '-'}
         
         # Start with default chunk size
         if len(words) <= 3:
+            # Check if there's a sentence end
+            for i, word in enumerate(words):
+                if word.endswith(('.', '!', '?')) and i < len(words) - 1:
+                    return i + 1  # Break at sentence end
             return len(words)
         
-        # Try 4-6 words first
+        # Check for quoted text (movie titles) - don't break them
+        text = ' '.join(words[:min(10, len(words))])
+        if '"' in text or '«' in text or '"' in text:
+            # Find matching closing quote
+            for i, word in enumerate(words[:min(10, len(words))]):
+                if '"' in word or '»' in word or '"' in word:
+                    # Include everything up to and including the closing quote
+                    if i < len(words) - 1:
+                        return min(i + 2, len(words))  # Quote + next word
+        
+        # Priority 1: Break at sentence boundaries (. ! ?)
+        for i in range(3, min(7, len(words))):
+            if words[i-1].endswith(('.', '!', '?')):
+                return i
+        
+        # Priority 2: Try 4-6 words without breaking rules
         for size in [5, 4, 6, 3]:
             if size > len(words):
                 continue
             
             # Check if last word of chunk is non-breaking
-            last_word = words[size - 1].lower().strip('.,!?;:')
-            next_word = words[size].lower().strip('.,!?;:') if size < len(words) else ''
+            last_word = words[size - 1].lower().strip('.,!?;:"«»""')
+            next_word = words[size].lower().strip('.,!?;:"«»""') if size < len(words) else ''
             
             # Avoid ending with non-breaking word
             if last_word in non_breaking:
@@ -448,21 +471,30 @@ class FFmpegHelper:
             if next_word in non_breaking:
                 continue
             
+            # Don't break if we're in the middle of quoted text
+            chunk_text = ' '.join(words[:size])
+            remaining_text = ' '.join(words[size:]) if size < len(words) else ''
+            open_quotes = chunk_text.count('"') + chunk_text.count('«') + chunk_text.count('"')
+            close_quotes = chunk_text.count('"') + chunk_text.count('»') + chunk_text.count('"')
+            if open_quotes > close_quotes:
+                continue  # Don't break in middle of quoted text
+            
             return size
         
         # Fallback
         return min(4, len(words))
     
     @staticmethod
-    def _smart_split_short_subtitle(text: str, max_chars_per_line: int = 25) -> str:
+    def _smart_split_short_subtitle(text: str, max_chars_per_line: int = 28) -> str:
         """
-        Smart text splitting for short TikTok-style subtitles.
-        Maximum 2 lines, ~25 characters per line.
+        Smart text splitting for TikTok-style subtitles.
+        Maximum 2 lines, ~28 characters per line.
         
         Rules:
-        - Keep it short and punchy
-        - Avoid orphaned prepositions and conjunctions
+        - Don't break movie titles in quotes
+        - No hanging prepositions/conjunctions/dashes
         - Break at natural pause points
+        - Keep sentence endings intact
         """
         # If text fits in one line, return as is
         if len(text) <= max_chars_per_line:
@@ -471,46 +503,71 @@ class FFmpegHelper:
         # List of words that should not end a line
         non_breaking_words = {
             'в', 'на', 'с', 'к', 'у', 'о', 'об', 'по', 'за', 'из', 'до', 'для', 'без', 'от', 'при', 'про', 'под',
-            'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда', 'хотя',
-            'не', 'ни', 'ли', 'же', 'бы', 'ведь', 'уж', 'вот', 'даже',
-            'это', 'тот', 'та', 'то', 'те', 'эта', 'этот', 'эти'
+            'и', 'а', 'но', 'или', 'да', 'что', 'как', 'если', 'чтобы', 'когда', 'хотя', 'ведь',
+            'не', 'ни', 'ли', 'же', 'бы', 'уж', 'вот', 'даже',
+            'это', 'тот', 'та', 'то', 'те', 'эта', 'этот', 'эти', 'тут', 'там', 'здесь',
+            '—', '-', '–'
         }
         
         words = text.split()
         
-        # Try to split near the middle
+        # Check for quoted text (movie title) - keep it on one line if possible
+        if ('"' in text or '«' in text or '"' in text) and len(text) <= max_chars_per_line * 1.5:
+            # Try to keep quote on one line
+            for i in range(1, len(words)):
+                line1 = ' '.join(words[:i])
+                line2 = ' '.join(words[i:])
+                
+                # Check if quote is complete in line1
+                open_quotes_l1 = line1.count('"') + line1.count('«') + line1.count('"')
+                close_quotes_l1 = line1.count('"') + line1.count('»') + line1.count('"')
+                
+                # If line1 has complete quote (balanced), split there
+                if open_quotes_l1 > 0 and open_quotes_l1 == close_quotes_l1:
+                    if len(line1) <= max_chars_per_line * 1.2 and len(line2) <= max_chars_per_line * 1.2:
+                        return f"{line1}\n{line2}"
+        
+        # Priority: Split at sentence boundaries if exists
+        for i in range(1, len(words)):
+            if words[i-1].endswith(('.', '!', '?')):
+                line1 = ' '.join(words[:i])
+                line2 = ' '.join(words[i:])
+                if len(line1) <= max_chars_per_line * 1.3 and len(line2) <= max_chars_per_line * 1.3:
+                    return f"{line1}\n{line2}"
+        
+        # Try to split near the middle, respecting rules
         mid = len(words) // 2
         
-        # Look for best split point around middle
-        for i in range(mid - 1, mid + 2):
-            if i <= 0 or i >= len(words):
-                continue
-            
+        # Look for best split point around middle (±2 words)
+        for i in range(max(1, mid - 2), min(len(words), mid + 3)):
             line1 = ' '.join(words[:i])
             line2 = ' '.join(words[i:])
             
-            # Check line lengths
-            if len(line1) > max_chars_per_line or len(line2) > max_chars_per_line:
+            # Check line lengths (allow slight overflow)
+            if len(line1) > max_chars_per_line * 1.3 or len(line2) > max_chars_per_line * 1.3:
                 continue
             
             # Check for non-breaking words
-            last_word = words[i-1].lower().strip('.,!?;:')
-            first_word_line2 = words[i].lower().strip('.,!?;:')
+            last_word = words[i-1].lower().strip('.,!?;:"«»""')
+            first_word_line2 = words[i].lower().strip('.,!?;:"«»""') if i < len(words) else ''
             
             if last_word in non_breaking_words or first_word_line2 in non_breaking_words:
+                continue
+            
+            # Don't split in middle of quoted text
+            open_quotes = line1.count('"') + line1.count('«') + line1.count('"')
+            close_quotes = line1.count('"') + line1.count('»') + line1.count('"')
+            if open_quotes > close_quotes:
                 continue
             
             # Good split point found
             return f"{line1}\n{line2}"
         
-        # Fallback: split at middle
-        mid = len(words) // 2
-        if mid > 0:
-            line1 = ' '.join(words[:mid])
-            line2 = ' '.join(words[mid:])
-            return f"{line1}\n{line2}"
-        
-        return text
+        # Fallback: split at middle regardless of rules
+        mid = max(1, len(words) // 2)
+        line1 = ' '.join(words[:mid])
+        line2 = ' '.join(words[mid:])
+        return f"{line1}\n{line2}"
     
     @staticmethod
     def _format_srt_time(seconds: float) -> str:
