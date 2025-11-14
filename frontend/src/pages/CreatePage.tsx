@@ -812,10 +812,14 @@ export default function CreatePage() {
         </div>
       )}
 
-      {/* Step 2: Voiceover Text & Audio */}
+      {/* Step 2: Voiceover, Audio & Timeline (Combined) */}
       {currentProject && locationSelected && displayStep === 2 && voiceoverText && (
         <div className="glass-card p-8 mb-6">
-          <h3 className="text-xl font-bold mb-4">Этап 2: Текст для озвучки</h3>
+          <h3 className="text-xl font-bold mb-6">Этап 2: Озвучка и тайминги</h3>
+          
+          {/* Section 1: Voiceover Text */}
+          <div className="mb-8 pb-8 border-b border-white/10">
+            <h4 className="text-lg font-semibold mb-4">📝 Текст для озвучки</h4>
           
           {/* Helper text with audio tags info */}
           <div className="mb-3 p-3 bg-blue-600/10 rounded-lg text-sm">
@@ -900,131 +904,43 @@ export default function CreatePage() {
                 </button>
                 
                 <button
-                  onClick={handleApproveVoiceover}
-                  disabled={updateScenarioMutation.isPending}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  onClick={handleGenerateAudio}
+                  disabled={generateAudioMutation.isPending}
+                  className="btn-secondary flex-1"
                 >
-                  <Check size={20} />
-                  Принять и продолжить
+                  Перегенерировать аудио
                 </button>
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {/* Next steps placeholder */}
-      {currentProject && locationSelected && displayStep >= 3 && (
-        <>
-          {/* Step 3: Materials Upload */}
-          <div className="glass-card p-8 mb-6">
-            <h3 className="text-xl font-bold mb-4">Этап 3: Загрузка материалов</h3>
-
-            {/* Upload area with drag & drop */}
-            <div className="mb-6">
-              <MaterialUploader
-                onFilesSelected={handleFilesSelected}
-                maxFiles={10}
-                accept="image/*,video/*"
-                disabled={uploadMaterialMutation.isPending}
-              />
-            </div>
-
-            {/* Upload Preview */}
-            <UploadPreview
-              uploadingFiles={uploadingFiles}
-              onRemove={handleRemoveUpload}
-            />
-
-            {/* Analysis status banner */}
-            {analyzeStatus === 'pending' && (
-              <div className="p-3 mb-4 bg-yellow-600/20 rounded">Анализ изображений в процессе...</div>
-            )}
-            {analyzeStatus === 'done' && (
-              <div className="p-3 mb-4 bg-green-600/10 rounded">Анализ завершён — результаты отображены под превью.</div>
-            )}
-            {analyzeStatus === 'error' && (
-              <div className="p-3 mb-4 bg-red-600/10 rounded">Ошибка анализа — проверьте логи.</div>
-            )}
-
-            {/* Materials Grid */}
-            {currentProject.materials && currentProject.materials.length > 0 && (
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold">Загруженные материалы ({currentProject.materials.length})</h4>
-                  <button
-                    onClick={handleAnalyzeMaterials}
-                    disabled={analyzeMaterialsMutation.isPending}
-                    className="btn-secondary flex items-center gap-2"
-                  >
-                    {analyzeMaterialsMutation.isPending ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={16} />
-                    )}
-                    Анализировать AI
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {currentProject.materials.map((material: any) => (
-                    <div key={material.id} className="glass-card p-2 relative group">
-                      <img
-                        src={material.url}
-                        alt="Material"
-                        className="w-full h-32 object-cover rounded mb-2"
-                      />
-                      {material.analysis && (
-                        <p className="text-xs text-white/60 line-clamp-3">{material.analysis}</p>
-                      )}
-                      
-                      {/* Delete Button */}
-                      <button
-                        onClick={() => handleDeleteMaterial(material.id)}
-                        disabled={deleteMaterialMutation.isPending}
-                        className="absolute top-1 right-1 p-2 bg-red-600 hover:bg-red-700 
-                                 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity
-                                 disabled:opacity-50"
-                        title="Удалить материал"
-                      >
-                        <Loader2 size={16} className={deleteMaterialMutation.isPending ? 'animate-spin' : 'hidden'} />
-                        <span className={deleteMaterialMutation.isPending ? 'hidden' : 'block'}>✕</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Next Step Button - Show after successful analysis */}
-                {analyzeStatus === 'done' && displayStep === 3 && (
-                  <div className="mt-6">
-                    <button
-                      onClick={() => {
-                        if (currentProject) {
-                          projectsApi
-                            .updateStep(currentProject.id, 4)
-                            .then(() => {
-                              queryClient.invalidateQueries({ queryKey: ['projects'] })
-                              setCurrentProject({ ...currentProject, current_step: 4 })
-                              setViewStep(null) // Reset view to follow DB step
-                            })
-                        }
-                      }}
-                      className="btn-primary w-full flex items-center justify-center gap-2"
-                    >
-                      <Check size={20} />
-                      Далее: Тайминги
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
-          {/* Step 4: Timeline */}
-          {displayStep >= 4 && (
-            <div className="glass-card p-8">
-              <h3 className="text-xl font-bold mb-4">Этап 4: Тайминги и монтаж</h3>
+          {/* Section 2: Audio Player */}
+          {currentProject.audio_url && (
+            <div className="mb-8 pb-8 border-b border-white/10">
+              <h4 className="text-lg font-semibold mb-4">🎵 Аудиодорожка</h4>
+              <div className="glass-card p-4">
+                <audio
+                  src={currentProject.audio_url}
+                  controls
+                  className="w-full"
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                />
+                <p className="text-sm text-white/60 mt-2">
+                  {currentProject.audio_alignment?.audio_duration 
+                    ? `Длительность: ${currentProject.audio_alignment.audio_duration.toFixed(1)}с`
+                    : 'Аудио готово к использованию'}
+                </p>
+              </div>
+            </div>
+          )}
 
+          {/* Section 3: Timeline */}
+          {currentProject.audio_url && (
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold mb-4">📋 Тайминги и раскладка</h4>
+              
               {!currentProject.timeline || currentProject.timeline.length === 0 ? (
                 <button
                   onClick={handleGenerateTimeline}
@@ -1038,7 +954,6 @@ export default function CreatePage() {
                 <>
                   <div className="space-y-3 mb-4">
                     {currentProject.timeline.map((segment: any, index: number) => {
-                      // Find material by ID
                       const material = segment.material_id !== 'MISSING' 
                         ? currentProject.materials?.find((m: any) => m.id === segment.material_id)
                         : null
@@ -1068,16 +983,10 @@ export default function CreatePage() {
                                 </p>
                               )}
                             </div>
-                          ) : segment.material_id !== 'MISSING' ? (
-                            <div className="w-32 shrink-0">
-                              <div className="w-full h-20 bg-red-600/20 rounded flex items-center justify-center text-xs text-red-400">
-                                Материал не найден
-                              </div>
-                            </div>
                           ) : (
                             <div className="w-32 shrink-0">
                               <div className="w-full h-20 bg-white/5 rounded flex items-center justify-center text-xs text-white/40">
-                                Нет материала
+                                {segment.material_id === 'MISSING' ? 'Нет материала' : 'Не найден'}
                               </div>
                             </div>
                           )}
@@ -1086,54 +995,43 @@ export default function CreatePage() {
                     })}
                   </div>
 
-                  {/* Regenerate Timeline Button */}
-                  <div className="flex gap-3 mb-6">
+                  <div className="flex gap-3">
                     <button
                       onClick={handleGenerateTimeline}
                       disabled={generateTimelineMutation.isPending}
-                      className="btn-secondary flex items-center justify-center gap-2"
+                      className="btn-secondary flex items-center gap-2"
                     >
                       {generateTimelineMutation.isPending && <Loader2 size={20} className="animate-spin" />}
                       Перегенерировать тайминги
                     </button>
+                    
+                    <button
+                      onClick={() => {
+                        if (currentProject) {
+                          changeStepMutation.mutate({ id: currentProject.id, step: 5 })
+                        }
+                      }}
+                      className="btn-primary flex-1"
+                    >
+                      Далее: Генерация видео
+                    </button>
                   </div>
                 </>
               )}
-
-              {/* Next Step Button - Show after timeline is generated */}
-              {currentProject.timeline && currentProject.timeline.length > 0 && displayStep === 4 && (
-                <div className="mt-6">
-                  <button
-                    onClick={() => {
-                      if (currentProject) {
-                        projectsApi
-                          .updateStep(currentProject.id, 5)
-                          .then(() => {
-                            queryClient.invalidateQueries({ queryKey: ['projects'] })
-                            setCurrentProject({ ...currentProject, current_step: 5 })
-                            setViewStep(null) // Reset view to follow DB step
-                          })
-                      }
-                    }}
-                    className="btn-primary w-full flex items-center justify-center gap-2"
-                  >
-                    <Check size={20} />
-                    Далее: Генерация видео с аватаром
-                  </button>
-                </div>
-              )}
             </div>
           )}
-        </>
+        </div>
       )}
 
-      {/* Future steps */}
-      {currentProject && displayStep >= 5 && (
-        <>
-          {/* Step 5: Avatar Video Generation */}
-          <div className="glass-card p-8 mb-6">
-            <h3 className="text-xl font-bold mb-4">Этап 5: Генерация видео с аватаром</h3>
-
+      {/* Step 3: Avatar Generation + Video Composition */}
+      {currentProject && locationSelected && displayStep >= 3 && (
+        <div className="glass-card p-8 mb-6">
+          <h3 className="text-xl font-bold mb-6">Этап 3: Генерация и монтаж</h3>
+          
+          {/* Section 1: Avatar Video Generation */}
+          <div className="mb-8 pb-8 border-b border-white/10">
+            <h4 className="text-lg font-semibold mb-4">🎬 Генерация видео с аватаром</h4>
+            
             {/* Generation status banners */}
             {avatarGenStatus === 'pending' && (
               <div className="p-3 mb-4 bg-yellow-600/20 rounded flex items-center gap-2">
@@ -1190,181 +1088,21 @@ export default function CreatePage() {
                     style={{ maxHeight: '500px' }}
                   />
                 </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleGenerateAvatar}
-                    disabled={generateAvatarMutation.isPending}
-                    className="btn-secondary flex-1"
-                  >
-                    Перегенерировать
-                  </button>
-                  {displayStep === 5 && (
-                    <button
-                      onClick={async () => {
-                        await projectsApi.updateStep(currentProject.id, 6)
-                        setCurrentProject({ ...currentProject, current_step: 6 })
-                        setViewStep(null) // Reset view to follow DB step
-                      }}
-                      className="btn-primary flex-1"
-                    >
-                      Далее: Монтаж
-                    </button>
-                  )}
-                </div>
+                <button
+                  onClick={handleGenerateAvatar}
+                  disabled={generateAvatarMutation.isPending}
+                  className="btn-secondary w-full"
+                >
+                  Перегенерировать видео с аватаром
+                </button>
               </div>
             )}
           </div>
 
-          {/* Step 7: Auto-Build Progress (Auto mode) */}
-          {viewStep === 7 && (
-            <div className="glass-card p-8">
-              <h3 className="text-xl font-bold mb-6 text-center">🤖 Автоматическая сборка видео</h3>
-              
-              <div className="max-w-2xl mx-auto space-y-4">
-                {/* Current stage banner */}
-                <div className="p-4 bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-3">
-                    <Loader2 size={24} className="animate-spin" />
-                    <span className="text-lg font-semibold">{autoBuildStage}</span>
-                  </div>
-                </div>
-                
-                {/* Progress stages */}
-                <div className="space-y-3">
-                  {/* Stage 1: Extract Text */}
-                  <div className={`p-4 rounded-lg border-2 transition-all ${
-                    autoBuildProgress.extractText === 'done' 
-                      ? 'border-green-500/50 bg-green-500/10' 
-                      : autoBuildProgress.extractText === 'pending'
-                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
-                      : 'border-white/10 bg-white/5'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {autoBuildProgress.extractText === 'done' ? (
-                        <Check size={20} className="text-green-500" />
-                      ) : autoBuildProgress.extractText === 'pending' ? (
-                        <Loader2 size={20} className="animate-spin text-yellow-500" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
-                      )}
-                      <span className="font-medium">1. Извлечение текста из сценария</span>
-                    </div>
-                  </div>
-                  
-                  {/* Stage 2: Analyze Materials */}
-                  <div className={`p-4 rounded-lg border-2 transition-all ${
-                    autoBuildProgress.analyzeMaterials === 'done' 
-                      ? 'border-green-500/50 bg-green-500/10' 
-                      : autoBuildProgress.analyzeMaterials === 'pending'
-                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
-                      : 'border-white/10 bg-white/5'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {autoBuildProgress.analyzeMaterials === 'done' ? (
-                        <Check size={20} className="text-green-500" />
-                      ) : autoBuildProgress.analyzeMaterials === 'pending' ? (
-                        <Loader2 size={20} className="animate-spin text-yellow-500" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
-                      )}
-                      <span className="font-medium">2. Анализ материалов (GPT Vision)</span>
-                    </div>
-                  </div>
-                  
-                  {/* Stage 3: Generate Audio */}
-                  <div className={`p-4 rounded-lg border-2 transition-all ${
-                    autoBuildProgress.generateAudio === 'done' 
-                      ? 'border-green-500/50 bg-green-500/10' 
-                      : autoBuildProgress.generateAudio === 'pending'
-                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
-                      : 'border-white/10 bg-white/5'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {autoBuildProgress.generateAudio === 'done' ? (
-                        <Check size={20} className="text-green-500" />
-                      ) : autoBuildProgress.generateAudio === 'pending' ? (
-                        <Loader2 size={20} className="animate-spin text-yellow-500" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
-                      )}
-                      <span className="font-medium">3. Генерация аудио (ElevenLabs)</span>
-                    </div>
-                  </div>
-                  
-                  {/* Stage 4: Generate Timeline */}
-                  <div className={`p-4 rounded-lg border-2 transition-all ${
-                    autoBuildProgress.generateTimeline === 'done' 
-                      ? 'border-green-500/50 bg-green-500/10' 
-                      : autoBuildProgress.generateTimeline === 'pending'
-                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
-                      : 'border-white/10 bg-white/5'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {autoBuildProgress.generateTimeline === 'done' ? (
-                        <Check size={20} className="text-green-500" />
-                      ) : autoBuildProgress.generateTimeline === 'pending' ? (
-                        <Loader2 size={20} className="animate-spin text-yellow-500" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
-                      )}
-                      <span className="font-medium">4. Создание таймлайна видео</span>
-                    </div>
-                  </div>
-                  
-                  {/* Stage 5: Generate Avatar */}
-                  <div className={`p-4 rounded-lg border-2 transition-all ${
-                    autoBuildProgress.generateAvatar === 'done' 
-                      ? 'border-green-500/50 bg-green-500/10' 
-                      : autoBuildProgress.generateAvatar === 'pending'
-                      ? 'border-yellow-500/50 bg-yellow-500/10 animate-pulse'
-                      : 'border-white/10 bg-white/5'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {autoBuildProgress.generateAvatar === 'done' ? (
-                        <Check size={20} className="text-green-500" />
-                      ) : autoBuildProgress.generateAvatar === 'pending' ? (
-                        <Loader2 size={20} className="animate-spin text-yellow-500" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-white/20" />
-                      )}
-                      <span className="font-medium">5. Генерация аватар видео (HeyGen)</span>
-                    </div>
-                    {autoBuildProgress.generateAvatar === 'pending' && (
-                      <p className="text-sm text-white/60 mt-2 ml-8">
-                        Это может занять 1-3 минуты...
-                      </p>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Success message */}
-                {autoBuildProgress.complete && (
-                  <div className="p-4 bg-green-600/20 rounded-lg text-center mt-6">
-                    <Check size={32} className="mx-auto mb-2 text-green-500" />
-                    <p className="text-lg font-semibold">Видео успешно создано!</p>
-                    <button
-                      onClick={() => setViewStep(null)}
-                      className="btn-primary mt-4"
-                    >
-                      Перейти к результату
-                    </button>
-                  </div>
-                )}
-                
-                {/* Navigation hint */}
-                <div className="mt-6 p-4 bg-white/5 rounded-lg text-center">
-                  <p className="text-sm text-white/70">
-                    💡 Используйте зелёные кружки сверху для навигации между этапами
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 6: Final Composition */}
-          {displayStep >= 6 && currentProject.avatar_video_url && viewStep !== 7 && (
-            <div className="glass-card p-8">
-              <h3 className="text-xl font-bold mb-4">Этап 6: Финальный монтаж</h3>
+          {/* Section 2: Final Composition */}
+          {currentProject.avatar_video_url && (
+            <div className="mb-6">
+              <h4 className="text-lg font-semibold mb-4">🎥 Финальный монтаж</h4>
 
               {!currentProject.final_video_url ? (
                 <div>
@@ -1448,7 +1186,7 @@ export default function CreatePage() {
               )}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )
