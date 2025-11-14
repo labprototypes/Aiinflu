@@ -361,18 +361,40 @@ export default function CreatePage() {
     }
   }
 
-  const handleExtractAndAnalyze = () => {
+  const handleExtractAndAnalyze = async () => {
     if (currentProject) {
-      setAnalyzeStatus('pending')
-      extractAndAnalyzeMutation.mutate(currentProject.id)
+      try {
+        // First, save the scenario text to the backend
+        await updateScenarioMutation.mutateAsync({
+          id: currentProject.id,
+          data: { scenario_text: scenario },
+        })
+        
+        // Then, extract and analyze
+        setAnalyzeStatus('pending')
+        extractAndAnalyzeMutation.mutate(currentProject.id)
+      } catch (error) {
+        console.error('Failed to save scenario:', error)
+      }
     }
   }
 
-  const handleAutoBuild = () => {
+  const handleAutoBuild = async () => {
     if (currentProject) {
       if (confirm('Запустить полную автоматическую сборку видео?\n\nБудут выполнены все шаги: озвучка, тайминги, генерация видео, монтаж.\n\nЭто может занять 3-5 минут.')) {
-        setAnalyzeStatus('pending')
-        autoBuildMutation.mutate(currentProject.id)
+        try {
+          // First, save the scenario text to the backend
+          await updateScenarioMutation.mutateAsync({
+            id: currentProject.id,
+            data: { scenario_text: scenario },
+          })
+          
+          // Then, start auto-build
+          setAnalyzeStatus('pending')
+          autoBuildMutation.mutate(currentProject.id)
+        } catch (error) {
+          console.error('Failed to save scenario:', error)
+        }
       }
     }
   }
