@@ -86,10 +86,39 @@ class HeyGenHelper:
             image_data = image_response.content
             current_app.logger.info(f"Image downloaded, size: {len(image_data)} bytes")
             
-            # HeyGen expects raw binary data with Content-Type: image/png
+            # Convert to JPEG if PNG (HeyGen only accepts image/jpeg)
+            from PIL import Image
+            import io
+            
+            try:
+                img = Image.open(io.BytesIO(image_data))
+                current_app.logger.info(f"Image format detected: {img.format}")
+                
+                # Convert to RGB (required for JPEG) and save as JPEG
+                if img.format == 'PNG' or img.mode == 'RGBA':
+                    current_app.logger.info("Converting PNG/RGBA to JPEG...")
+                    # Convert RGBA to RGB
+                    if img.mode == 'RGBA':
+                        # Create white background
+                        background = Image.new('RGB', img.size, (255, 255, 255))
+                        background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
+                        img = background
+                    elif img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # Save as JPEG
+                    output = io.BytesIO()
+                    img.save(output, format='JPEG', quality=95)
+                    image_data = output.getvalue()
+                    current_app.logger.info(f"Converted to JPEG, new size: {len(image_data)} bytes")
+                
+            except Exception as e:
+                current_app.logger.warning(f"Failed to convert image: {str(e)}, using original")
+            
+            # HeyGen expects raw binary data with Content-Type: image/jpeg
             headers = {
                 'accept': 'application/json',
-                'Content-Type': 'image/png',
+                'Content-Type': 'image/jpeg',
                 'X-Api-Key': api_key
             }
             
